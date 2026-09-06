@@ -8,7 +8,6 @@ import {
   AlertTriangle,
   CheckSquare,
   Eye,
-  Calendar,
   Layers,
   X
 } from 'lucide-react';
@@ -56,22 +55,18 @@ export const FarmsPage: React.FC<FarmsPageProps> = ({ onSelectField, onNavigate 
     if (!newFieldName.trim() || !newFieldCrop.trim()) return;
     const acres = parseFloat(newFieldAcres) || 2.0;
 
+    // Field starts with NO fake health, NO fake observations (Section 1 & 26)
     addField(currentFarm.id, {
       name: newFieldName,
       crop: newFieldCrop,
       areaAcres: acres,
       plantingDate: new Date().toISOString().split('T')[0],
-      healthPercentage: 88,
-      healthBreakdown: { healthy: 88, atRisk: 10, critical: 2 },
-      status: 'Healthy',
+      healthPercentage: null,
+      healthBreakdown: null,
+      status: 'Unanalyzed',
       center: { lat: currentFarm.center.lat + 0.002, lng: currentFarm.center.lng + 0.002 },
-      boundary: [
-        { lat: currentFarm.center.lat + 0.001, lng: currentFarm.center.lng + 0.001 },
-        { lat: currentFarm.center.lat + 0.003, lng: currentFarm.center.lng + 0.001 },
-        { lat: currentFarm.center.lat + 0.003, lng: currentFarm.center.lng + 0.003 },
-        { lat: currentFarm.center.lat + 0.001, lng: currentFarm.center.lng + 0.003 }
-      ],
-      notes: 'Newly registered field'
+      boundary: [],
+      notes: 'Newly registered field parcel. Boundary required.'
     });
 
     setNewFieldName('');
@@ -80,8 +75,14 @@ export const FarmsPage: React.FC<FarmsPageProps> = ({ onSelectField, onNavigate 
   };
 
   const farmObs = observations.filter(o => o.farmId === currentFarm.id);
-  const farmProblems = problems.filter(p => p.farmId === currentFarm.id);
+  const farmProblems = problems.filter(p => p.farmId === currentFarm.id && p.status !== 'Resolved');
   const farmTasks = tasks.filter(t => currentFarm.fields.some(f => f.id === t.fieldId));
+
+  // Avg health across analyzed fields only
+  const analyzedFields = currentFarm.fields.filter(f => f.healthPercentage !== null);
+  const avgHealth = analyzedFields.length > 0
+    ? Math.round(analyzedFields.reduce((acc, f) => acc + (f.healthPercentage || 0), 0) / analyzedFields.length)
+    : null;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
@@ -173,7 +174,7 @@ export const FarmsPage: React.FC<FarmsPageProps> = ({ onSelectField, onNavigate 
             </div>
             <div className="text-left">
               <span className="text-2xl font-extrabold text-amber-600">
-                {farmProblems.filter(p => p.status !== 'Resolved').length}
+                {farmProblems.length}
               </span>
               <p className="text-[11px] font-bold text-slate-400 uppercase">Active Alerts</p>
             </div>
@@ -188,12 +189,9 @@ export const FarmsPage: React.FC<FarmsPageProps> = ({ onSelectField, onNavigate 
               <span>Avg Crop Health</span>
             </div>
             <p className="text-2xl font-black text-forest-950 mt-1">
-              {Math.round(
-                currentFarm.fields.reduce((acc, f) => acc + f.healthPercentage, 0) /
-                  (currentFarm.fields.length || 1)
-              )}%
+              {avgHealth !== null ? `${avgHealth}%` : 'Unanalyzed'}
             </p>
-            <p className="text-[10px] text-forest-700 mt-0.5">Weighted across all parcels</p>
+            <p className="text-[10px] text-forest-700 mt-0.5">Across analyzed parcels</p>
           </div>
 
           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
@@ -202,7 +200,7 @@ export const FarmsPage: React.FC<FarmsPageProps> = ({ onSelectField, onNavigate 
               <span>Observations</span>
             </div>
             <p className="text-2xl font-black text-slate-900 mt-1">{farmObs.length}</p>
-            <p className="text-[10px] text-slate-500 mt-0.5">Recorded via glasses & web</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">Scouted across this farm</p>
           </div>
 
           <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200">
@@ -211,7 +209,7 @@ export const FarmsPage: React.FC<FarmsPageProps> = ({ onSelectField, onNavigate 
               <span>Issues Reported</span>
             </div>
             <p className="text-2xl font-black text-amber-900 mt-1">{farmProblems.length}</p>
-            <p className="text-[10px] text-amber-700 mt-0.5">Disease & foliage alerts</p>
+            <p className="text-[10px] text-amber-700 mt-0.5">Active pathologies</p>
           </div>
 
           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
@@ -220,7 +218,7 @@ export const FarmsPage: React.FC<FarmsPageProps> = ({ onSelectField, onNavigate 
               <span>Tasks Scheduled</span>
             </div>
             <p className="text-2xl font-black text-slate-900 mt-1">{farmTasks.length}</p>
-            <p className="text-[10px] text-slate-500 mt-0.5">Irrigation, pruning, spray</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">Scheduled operations</p>
           </div>
         </div>
       </div>
@@ -235,92 +233,116 @@ export const FarmsPage: React.FC<FarmsPageProps> = ({ onSelectField, onNavigate 
           <span className="text-xs text-slate-500">Click any field to view deep 7-tab profile</span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {currentFarm.fields.map(field => {
-            const fieldObs = observations.filter(o => o.fieldId === field.id);
-            const fieldProbs = problems.filter(p => p.fieldId === field.id);
+        {currentFarm.fields.length === 0 ? (
+          <div className="bg-white rounded-3xl p-12 text-center text-slate-400 border border-slate-200 space-y-3">
+            <Layers className="w-10 h-10 mx-auto text-slate-300" />
+            <p className="font-bold text-slate-700">This farm has no fields yet.</p>
+            <p className="text-xs">Click "Add Field" to register your first plot.</p>
+            <button
+              onClick={() => setIsAddFieldOpen(true)}
+              className="px-4 py-2 bg-forest-600 hover:bg-forest-700 text-white text-xs font-bold rounded-xl shadow-xs"
+            >
+              Add First Field
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {currentFarm.fields.map(field => {
+              const fieldObsCount = observations.filter(o => o.fieldId === field.id).length;
+              const fieldProbsCount = problems.filter(p => p.fieldId === field.id && p.status !== 'Resolved').length;
 
-            return (
-              <div
-                key={field.id}
-                onClick={() => onSelectField(field)}
-                className="bg-white rounded-3xl p-6 border border-slate-200/80 hover:border-forest-400 hover:shadow-lg transition-all cursor-pointer group flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-forest-100 text-forest-800">
-                        {field.crop}
+              return (
+                <div
+                  key={field.id}
+                  onClick={() => onSelectField(field)}
+                  className="bg-white rounded-3xl p-6 border border-slate-200/80 hover:border-forest-400 hover:shadow-lg transition-all cursor-pointer group flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-forest-100 text-forest-800">
+                          {field.crop}
+                        </span>
+                        <h4 className="text-lg font-extrabold text-slate-900 group-hover:text-forest-700 transition-colors mt-1">
+                          {field.name}
+                        </h4>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {field.areaAcres} Acres • Planted {field.plantingDate}
+                        </p>
+                      </div>
+                      <span
+                        className={`px-2.5 py-1 rounded-xl text-xs font-extrabold ${
+                          field.status === 'Healthy'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : field.status === 'At Risk'
+                            ? 'bg-amber-100 text-amber-800'
+                            : field.status === 'Critical'
+                            ? 'bg-rose-100 text-rose-800'
+                            : 'bg-slate-100 text-slate-700'
+                        }`}
+                      >
+                        {field.status}
                       </span>
-                      <h4 className="text-lg font-extrabold text-slate-900 group-hover:text-forest-700 transition-colors mt-1">
-                        {field.name}
-                      </h4>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        {field.areaAcres} Acres • Planted {field.plantingDate}
+                    </div>
+
+                    {/* Health Bar or No Health Data */}
+                    <div className="mt-4">
+                      {field.healthPercentage !== null && field.healthBreakdown ? (
+                        <>
+                          <div className="flex justify-between text-xs font-semibold mb-1">
+                            <span className="text-slate-500">Overall Health</span>
+                            <span className="text-slate-900 font-bold">{field.healthPercentage}%</span>
+                          </div>
+                          <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden flex">
+                            <div
+                              style={{ width: `${field.healthBreakdown.healthy}%` }}
+                              className="bg-emerald-500 h-full"
+                            />
+                            <div
+                              style={{ width: `${field.healthBreakdown.atRisk}%` }}
+                              className="bg-amber-400 h-full"
+                            />
+                            <div
+                              style={{ width: `${field.healthBreakdown.critical}%` }}
+                              className="bg-rose-500 h-full"
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <div className="p-2.5 rounded-xl bg-slate-50 text-[11px] text-slate-500 text-center">
+                          No crop health data available yet.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Field Meta Chips (Strictly field isolated) */}
+                    <div className="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-slate-100 text-xs">
+                      <div className="p-2 rounded-xl bg-slate-50 text-slate-600">
+                        <span className="text-slate-400 block text-[10px]">Observations</span>
+                        <strong className="text-slate-900">{fieldObsCount} records</strong>
+                      </div>
+                      <div className="p-2 rounded-xl bg-slate-50 text-slate-600">
+                        <span className="text-slate-400 block text-[10px]">Active Issues</span>
+                        <strong className="text-slate-900">{fieldProbsCount} reported</strong>
+                      </div>
+                    </div>
+
+                    {field.notes && (
+                      <p className="text-[11px] text-slate-500 mt-3 line-clamp-2 italic">
+                        "{field.notes}"
                       </p>
-                    </div>
-                    <span
-                      className={`px-2.5 py-1 rounded-xl text-xs font-extrabold ${
-                        field.status === 'Healthy'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : field.status === 'At Risk'
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-rose-100 text-rose-800'
-                      }`}
-                    >
-                      {field.status}
-                    </span>
+                    )}
                   </div>
 
-                  {/* Health Bar */}
-                  <div className="mt-4">
-                    <div className="flex justify-between text-xs font-semibold mb-1">
-                      <span className="text-slate-500">Overall Health</span>
-                      <span className="text-slate-900 font-bold">{field.healthPercentage}%</span>
-                    </div>
-                    <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden flex">
-                      <div
-                        style={{ width: `${field.healthBreakdown.healthy}%` }}
-                        className="bg-emerald-500 h-full"
-                      />
-                      <div
-                        style={{ width: `${field.healthBreakdown.atRisk}%` }}
-                        className="bg-amber-400 h-full"
-                      />
-                      <div
-                        style={{ width: `${field.healthBreakdown.critical}%` }}
-                        className="bg-rose-500 h-full"
-                      />
-                    </div>
+                  <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-forest-700 group-hover:text-forest-900">
+                    <span>Open Field Profile</span>
+                    <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                   </div>
-
-                  {/* Field Meta Chips */}
-                  <div className="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-slate-100 text-xs">
-                    <div className="p-2 rounded-xl bg-slate-50 text-slate-600">
-                      <span className="text-slate-400 block text-[10px]">Observations</span>
-                      <strong className="text-slate-900">{fieldObs.length} records</strong>
-                    </div>
-                    <div className="p-2 rounded-xl bg-slate-50 text-slate-600">
-                      <span className="text-slate-400 block text-[10px]">Active Issues</span>
-                      <strong className="text-slate-900">{fieldProbs.length} reported</strong>
-                    </div>
-                  </div>
-
-                  {field.notes && (
-                    <p className="text-[11px] text-slate-500 mt-3 line-clamp-2 italic">
-                      "{field.notes}"
-                    </p>
-                  )}
                 </div>
-
-                <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-forest-700 group-hover:text-forest-900">
-                  <span>Open Field Profile</span>
-                  <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Modal: Add Farm */}
@@ -398,7 +420,7 @@ export const FarmsPage: React.FC<FarmsPageProps> = ({ onSelectField, onNavigate 
                   required
                   value={newFieldName}
                   onChange={e => setNewFieldName(e.target.value)}
-                  placeholder="e.g. Guava Orchard North"
+                  placeholder="e.g. New Potato Field"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-forest-500 focus:outline-none"
                 />
               </div>
@@ -411,7 +433,7 @@ export const FarmsPage: React.FC<FarmsPageProps> = ({ onSelectField, onNavigate 
                   required
                   value={newFieldCrop}
                   onChange={e => setNewFieldCrop(e.target.value)}
-                  placeholder="e.g. Guava (Allahabad Safeda)"
+                  placeholder="e.g. Potato (Kufri Jyoti)"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-forest-500 focus:outline-none"
                 />
               </div>

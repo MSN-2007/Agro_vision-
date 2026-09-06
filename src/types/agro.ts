@@ -20,16 +20,17 @@ export interface Field {
   crop: string;
   areaAcres: number;
   plantingDate: string;
-  healthPercentage: number;
+  healthPercentage: number | null; // Nullable for user-created fields without analysis
   healthBreakdown: {
     healthy: number;
     atRisk: number;
     critical: number;
-  };
-  status: FieldHealthStatus;
+  } | null;
+  status: FieldHealthStatus | 'Unanalyzed';
   boundary: LatLng[];
   center: LatLng;
   notes?: string;
+  isDemoField?: boolean;
 }
 
 export interface Farm {
@@ -40,6 +41,7 @@ export interface Farm {
   totalAreaAcres: number;
   fields: Field[];
   createdAt: string;
+  isDemoFarm?: boolean;
 }
 
 export interface FarmerUser {
@@ -59,7 +61,7 @@ export interface Observation {
   title: string;
   notes: string;
   farmId: string;
-  fieldId: string;
+  fieldId: string | null; // Strict field association
   crop: string;
   location: LatLng;
   locationName?: string;
@@ -76,7 +78,7 @@ export interface Observation {
 export interface MediaItem {
   id: string;
   farmId: string;
-  fieldId: string;
+  fieldId: string | null; // Strict field association
   crop: string;
   type: 'photo' | 'video';
   url: string;
@@ -90,7 +92,7 @@ export interface MediaItem {
 
 export interface ProblemReport {
   id: string;
-  fieldId: string;
+  fieldId: string | null; // Strict field association
   farmId: string;
   crop: string;
   reportedAt: string;
@@ -113,7 +115,7 @@ export type TaskStatus = 'Pending' | 'Completed' | 'Overdue';
 export interface FarmTask {
   id: string;
   title: string;
-  fieldId: string;
+  fieldId: string | null; // Strict field association
   dueDate: string;
   status: TaskStatus;
   voiceCreated?: boolean;
@@ -125,32 +127,63 @@ export interface FarmReminder {
   id: string;
   title: string;
   timeStr: string;
-  fieldId: string;
+  fieldId: string | null; // Strict field association
   status: 'Scheduled' | 'Triggered' | 'Dismissed';
   createdAt: string;
+}
+
+export interface HourlyWeatherPoint {
+  time: string;
+  temp: number;
+  humidity: number;
+  rainProb: number;
+  solarRadiation: number;
+}
+
+export interface DailyWeatherForecast {
+  day: string;
+  date: string;
+  tempMax: number;
+  tempMin: number;
+  condition: string;
+  rainProb: number;
+  windSpeed: number;
 }
 
 export interface FieldWeather {
   fieldId: string;
   fieldName: string;
+  latitude: number;
+  longitude: number;
   temperature: number;
   feelsLike: number;
+  tempMin: number;
+  tempMax: number;
   condition: string;
-  conditionIcon: string;
+  conditionCode: number;
   humidity: number;
   windKmh: number;
+  windDirectionDeg: number;
+  windDirectionCompass: string;
+  windGustsKmh: number;
+  pressureHpa: number;
+  visibilityKm: number;
+  cloudCoverPct: number;
+  uvIndex: number;
   rainProbability: number;
   rainfallMm: number;
+  sunriseTime: string;
+  sunsetTime: string;
+  solarRadiationWm2: number | null; // Actual W/m² from solar radiation API
   sprayAdvisory: {
     status: 'Optimal' | 'Caution' | 'Unsuitable';
     reason: string;
   };
-  forecast: Array<{
-    day: string;
-    temp: number;
-    condition: string;
-    rainProb: number;
-  }>;
+  hourlyForecast: HourlyWeatherPoint[];
+  dailyForecast: DailyWeatherForecast[];
+  lastUpdated: string;
+  isError?: boolean;
+  errorMessage?: string;
 }
 
 export interface SmartGlassesDevice {
@@ -182,7 +215,7 @@ export interface FarmNotification {
   message: string;
   timestamp: string;
   read: boolean;
-  fieldId?: string;
+  fieldId?: string | null;
 }
 
 export interface AssistantChatMessage {

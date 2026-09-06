@@ -27,13 +27,38 @@ export const MorningBriefingModal: React.FC = () => {
 
   if (!isBriefingModalOpen) return null;
 
-  const weather = currentField ? getFieldWeather(currentField.id) : getFieldWeather('field-mango-01');
-  const todayTasks = tasks.filter(t => t.dueDate.toLowerCase().includes('today'));
-  const activeAlerts = problems.filter(p => p.status !== 'Resolved');
-  const recentObs = observations[0];
+  const weather = getFieldWeather(currentField?.id);
+  const targetField = currentField || currentFarm.fields[0];
+
+  const todayTasks = tasks.filter(t => {
+    if (t.status !== 'Pending' && !t.dueDate.toLowerCase().includes('today')) return false;
+    if (targetField && t.fieldId && t.fieldId !== targetField.id) return false;
+    return true;
+  });
+
+  const activeAlerts = problems.filter(p => {
+    if (p.status === 'Resolved') return false;
+    if (targetField && p.fieldId && p.fieldId !== targetField.id) return false;
+    return true;
+  });
+
+  const fieldObs = targetField
+    ? observations.filter(o => o.fieldId === targetField.id)
+    : observations;
+  const recentObs = fieldObs[0];
 
   const handleSpeakBriefing = () => {
-    const text = `Good morning Ravi. ${currentField?.name || 'Mango Plantation'} is currently being monitored. Weather is ${weather.temperature} degrees Celsius, ${weather.condition} with ${weather.rainProbability} percent chance of rain. Today's tasks include: ${todayTasks.map(t => t.title).join(', ')}. Active alerts: ${activeAlerts.length} observation requires attention.`;
+    const weatherStr = weather && !weather.isError
+      ? `Weather is ${weather.temperature} degrees Celsius, ${weather.condition} with ${weather.rainProbability} percent chance of rain.`
+      : '';
+    const taskStr = todayTasks.length > 0
+      ? `Today's tasks include: ${todayTasks.map(t => t.title).join(', ')}.`
+      : 'No tasks scheduled for today.';
+    const alertStr = activeAlerts.length > 0
+      ? `Active alerts: ${activeAlerts.length} observation requires attention.`
+      : 'No active crop alerts.';
+
+    const text = `Good morning Ravi. ${targetField?.name || currentFarm.name} is currently being monitored. ${weatherStr} ${taskStr} ${alertStr}`;
     speechService.speak(text);
   };
 
@@ -68,7 +93,7 @@ export const MorningBriefingModal: React.FC = () => {
           <div className="flex items-center gap-2 mt-1 text-forest-100 text-xs">
             <Trees className="w-4 h-4 text-forest-300" />
             <span>
-              <strong>{currentFarm.name}</strong> • {currentField?.name || 'Mango Plantation'} is currently being monitored
+              <strong>{currentFarm.name}</strong> • {targetField ? targetField.name : 'Farm Overview'}
             </span>
           </div>
 
@@ -94,25 +119,31 @@ export const MorningBriefingModal: React.FC = () => {
         {/* Content Body */}
         <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
           {/* Weather Section */}
-          <div className="p-4 rounded-2xl bg-forest-50/60 border border-forest-100 flex items-center justify-between">
-            <div>
-              <p className="text-[11px] font-extrabold uppercase text-forest-700 tracking-wider">Weather Conditions</p>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-3xl font-black text-slate-900">{weather.temperature}°C</span>
-                <span className="text-sm font-semibold text-forest-900">{weather.condition}</span>
+          {weather && !weather.isError ? (
+            <div className="p-4 rounded-2xl bg-forest-50/60 border border-forest-100 flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-extrabold uppercase text-forest-700 tracking-wider">Weather Conditions</p>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <span className="text-3xl font-black text-slate-900">{weather.temperature}°C</span>
+                  <span className="text-sm font-semibold text-forest-900">{weather.condition}</span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {weather.rainProbability}% chance of rain • Wind {weather.windKmh} km/h {weather.windDirectionCompass}
+                </p>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {weather.rainProbability}% chance of rain • Wind {weather.windKmh} km/h
-              </p>
+              <div className="text-right">
+                <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                  weather.sprayAdvisory.status === 'Optimal' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                }`}>
+                  {weather.sprayAdvisory.status} Spray Window
+                </span>
+              </div>
             </div>
-            <div className="text-right">
-              <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-                weather.sprayAdvisory.status === 'Optimal' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-              }`}>
-                {weather.sprayAdvisory.status} Spray Window
-              </span>
+          ) : (
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-500 text-center">
+              Weather data temporarily unavailable for this parcel.
             </div>
-          </div>
+          )}
 
           {/* Today's Tasks */}
           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
@@ -123,14 +154,18 @@ export const MorningBriefingModal: React.FC = () => {
               </div>
               <span className="text-xs font-bold text-forest-700">{todayTasks.length} pending</span>
             </div>
-            <ul className="space-y-1.5 text-xs text-slate-700">
-              {todayTasks.slice(0, 3).map(task => (
-                <li key={task.id} className="flex items-start gap-2">
-                  <span className="text-forest-600 font-bold">•</span>
-                  <span>{task.title}</span>
-                </li>
-              ))}
-            </ul>
+            {todayTasks.length === 0 ? (
+              <p className="text-xs text-slate-400 py-1">No tasks scheduled for this field today.</p>
+            ) : (
+              <ul className="space-y-1.5 text-xs text-slate-700">
+                {todayTasks.slice(0, 3).map(task => (
+                  <li key={task.id} className="flex items-start gap-2">
+                    <span className="text-forest-600 font-bold">•</span>
+                    <span>{task.title}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           {/* Recent Observation */}
@@ -138,7 +173,7 @@ export const MorningBriefingModal: React.FC = () => {
             <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200">
               <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900 uppercase tracking-wide mb-1">
                 <Eye className="w-4 h-4 text-amber-600" />
-                <span>Recent Observation</span>
+                <span>Recent Observation ({recentObs.locationName})</span>
               </div>
               <p className="text-xs font-semibold text-slate-900">{recentObs.title}</p>
               <p className="text-[11px] text-slate-600 mt-0.5">{recentObs.notes}</p>
@@ -152,7 +187,9 @@ export const MorningBriefingModal: React.FC = () => {
               <div>
                 <p className="text-xs font-bold text-rose-950">Active Alerts</p>
                 <p className="text-[11px] text-rose-800">
-                  {activeAlerts.length} observation requires immediate attention in Mango Plantation.
+                  {activeAlerts.length > 0
+                    ? `${activeAlerts.length} observation requires attention in ${targetField?.name || currentFarm.name}.`
+                    : 'Zero critical crop problems detected.'}
                 </p>
               </div>
             </div>

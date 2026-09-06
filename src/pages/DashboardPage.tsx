@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Sun,
   MapPin,
@@ -9,18 +9,15 @@ import {
   CheckSquare,
   Eye,
   Camera,
-  Video,
-  Plus,
-  Bot,
   Activity,
-  ArrowRight,
   Sparkles,
   ShieldAlert,
-  ChevronRight
+  ChevronRight,
+  Droplets,
+  Wind
 } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { PageId } from '../components/Sidebar';
-import { QuickActionModal, QuickActionType } from '../components/QuickActionModal';
 
 interface DashboardPageProps {
   onNavigate: (page: PageId) => void;
@@ -43,34 +40,52 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
     setIsBriefingModalOpen
   } = useFarm();
 
-  const [quickAction, setQuickAction] = useState<QuickActionType>(null);
+  const weather = getFieldWeather(currentField?.id);
 
-  const weather = currentField ? getFieldWeather(currentField.id) : getFieldWeather('field-mango-01');
-  const todayTasks = tasks.filter(t => t.dueDate.toLowerCase().includes('today') || t.status === 'Pending');
-  const activeAlerts = problems.filter(p => p.status !== 'Resolved');
+  // Filter records strictly by current farm & field
+  const todayTasks = tasks.filter(t => {
+    if (t.status !== 'Pending' && !t.dueDate.toLowerCase().includes('today')) return false;
+    if (currentField && t.fieldId && t.fieldId !== currentField.id) return false;
+    return true;
+  });
+
+  const activeAlerts = problems.filter(p => {
+    if (p.status === 'Resolved') return false;
+    if (p.farmId !== currentFarm.id) return false;
+    if (currentField && p.fieldId && p.fieldId !== currentField.id) return false;
+    return true;
+  });
+
+  const recentObs = currentField
+    ? observations.filter(o => o.fieldId === currentField.id)
+    : observations.filter(o => o.farmId === currentFarm.id);
+
+  const recentMedia = currentField
+    ? mediaItems.filter(m => m.fieldId === currentField.id)
+    : mediaItems.filter(m => m.farmId === currentFarm.id);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
-      {/* 1. Farmer Personalized Greeting & Status Strip */}
+      {/* 1. Farmer Personalized Greeting & Overview Banner */}
       <div className="bg-gradient-to-r from-forest-800 via-forest-700 to-forest-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
-        {/* Subtle background leaves/grain decoration */}
-        <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-radial from-forest-600/30 to-transparent pointer-events-none" />
-
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
             <div className="flex items-center gap-2 text-forest-200 text-xs font-bold uppercase tracking-wider mb-2">
               <Sun className="w-4 h-4 text-amber-400" />
-              <span>Personalized Agricultural Overview</span>
+              <span>Personalized Farm Intelligence Dashboard</span>
             </div>
             <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight">
               Good morning, {user.name}
             </h1>
             <p className="text-forest-100 text-sm sm:text-base mt-1">
-              Your AgroVision smart glasses are tracking real-time farm activities in{' '}
-              <span className="font-bold underline decoration-forest-400">{currentFarm.name}</span>.
+              {currentField ? (
+                <>Currently monitoring <strong>{currentField.name}</strong> ({currentField.crop}) in {currentFarm.name}.</>
+              ) : (
+                <>Monitoring estate operations across <strong>{currentFarm.name}</strong>.</>
+              )}
             </p>
 
-            {/* Current Context Badges */}
+            {/* Live Telemetry Context Badges */}
             <div className="flex flex-wrap items-center gap-2 mt-4 text-xs font-semibold">
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/15 backdrop-blur-md">
                 <Trees className="w-3.5 h-3.5 text-emerald-300" />
@@ -78,7 +93,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
               </div>
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/15 backdrop-blur-md">
                 <MapPin className="w-3.5 h-3.5 text-amber-300" />
-                <span>{currentField ? currentField.name : 'Outside Boundary'}</span>
+                <span>{currentField ? currentField.name : 'Outside Registered Field'}</span>
               </div>
               {currentField && (
                 <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/15 backdrop-blur-md">
@@ -89,13 +104,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/15 backdrop-blur-md">
                 <Glasses className="w-3.5 h-3.5 text-sky-300" />
                 <span>
-                  Glasses: {device.connected ? `Connected (${device.batteryLevel}%)` : 'Offline'}
+                  Glasses: {device.connected ? `Connected (${device.batteryLevel}%)` : 'Standby'}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Morning Briefing Quick Trigger */}
+          {/* Morning Briefing Audio Action */}
           <div className="shrink-0 flex flex-col items-start md:items-end gap-2">
             <button
               onClick={() => setIsBriefingModalOpen(true)}
@@ -105,94 +120,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
               <span>Listen to Morning Briefing</span>
             </button>
             <span className="text-xs text-forest-200">
-              Audio summary of weather, alerts & tasks
+              Audio weather, alerts & daily tasks
             </span>
           </div>
         </div>
       </div>
 
-      {/* 2. Quick Actions Row (Master Prompt Section 3-G) */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-xs font-extrabold uppercase tracking-wider text-slate-500">
-            Quick Actions
-          </h2>
-          <span className="text-xs text-slate-400">Wearable & Hands-Free Shortcuts</span>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <button
-            onClick={() => setQuickAction('photo')}
-            className="p-4 rounded-2xl bg-white border border-slate-200/80 hover:border-forest-400 hover:shadow-md transition-all flex flex-col items-center text-center group"
-          >
-            <div className="w-11 h-11 rounded-xl bg-forest-50 group-hover:bg-forest-600 text-forest-700 group-hover:text-white flex items-center justify-center transition-colors mb-2">
-              <Camera className="w-5 h-5" />
-            </div>
-            <span className="text-xs font-bold text-slate-800">Take Photo</span>
-            <span className="text-[10px] text-slate-400 mt-0.5">Glasses Camera</span>
-          </button>
-
-          <button
-            onClick={() => setQuickAction('video')}
-            className="p-4 rounded-2xl bg-white border border-slate-200/80 hover:border-rose-400 hover:shadow-md transition-all flex flex-col items-center text-center group"
-          >
-            <div className="w-11 h-11 rounded-xl bg-rose-50 group-hover:bg-rose-600 text-rose-700 group-hover:text-white flex items-center justify-center transition-colors mb-2">
-              <Video className="w-5 h-5" />
-            </div>
-            <span className="text-xs font-bold text-slate-800">Record Video</span>
-            <span className="text-[10px] text-slate-400 mt-0.5">15s Canopy Clip</span>
-          </button>
-
-          <button
-            onClick={() => setQuickAction('observation')}
-            className="p-4 rounded-2xl bg-white border border-slate-200/80 hover:border-amber-400 hover:shadow-md transition-all flex flex-col items-center text-center group"
-          >
-            <div className="w-11 h-11 rounded-xl bg-amber-50 group-hover:bg-amber-600 text-amber-700 group-hover:text-white flex items-center justify-center transition-colors mb-2">
-              <Eye className="w-5 h-5" />
-            </div>
-            <span className="text-xs font-bold text-slate-800">Add Observation</span>
-            <span className="text-[10px] text-slate-400 mt-0.5">Voice or Text</span>
-          </button>
-
-          <button
-            onClick={() => setQuickAction('task')}
-            className="p-4 rounded-2xl bg-white border border-slate-200/80 hover:border-emerald-400 hover:shadow-md transition-all flex flex-col items-center text-center group"
-          >
-            <div className="w-11 h-11 rounded-xl bg-emerald-50 group-hover:bg-emerald-600 text-emerald-700 group-hover:text-white flex items-center justify-center transition-colors mb-2">
-              <CheckSquare className="w-5 h-5" />
-            </div>
-            <span className="text-xs font-bold text-slate-800">Add Task</span>
-            <span className="text-[10px] text-slate-400 mt-0.5">Schedule work</span>
-          </button>
-
-          <button
-            onClick={() => setQuickAction('reminder')}
-            className="p-4 rounded-2xl bg-white border border-slate-200/80 hover:border-blue-400 hover:shadow-md transition-all flex flex-col items-center text-center group"
-          >
-            <div className="w-11 h-11 rounded-xl bg-blue-50 group-hover:bg-blue-600 text-blue-700 group-hover:text-white flex items-center justify-center transition-colors mb-2">
-              <Plus className="w-5 h-5" />
-            </div>
-            <span className="text-xs font-bold text-slate-800">Add Reminder</span>
-            <span className="text-[10px] text-slate-400 mt-0.5">Time-based alert</span>
-          </button>
-
-          <button
-            onClick={() => setQuickAction('ask')}
-            className="p-4 rounded-2xl bg-white border border-slate-200/80 hover:border-purple-400 hover:shadow-md transition-all flex flex-col items-center text-center group"
-          >
-            <div className="w-11 h-11 rounded-xl bg-purple-50 group-hover:bg-purple-600 text-purple-700 group-hover:text-white flex items-center justify-center transition-colors mb-2">
-              <Bot className="w-5 h-5" />
-            </div>
-            <span className="text-xs font-bold text-slate-800">Ask AgroVision</span>
-            <span className="text-[10px] text-slate-400 mt-0.5">Conversational AI</span>
-          </button>
-        </div>
-      </div>
-
-      {/* 3. Core Cards Grid: A. Current Field, B. Weather, C. Tasks, D. Active Alerts */}
+      {/* 2. Core Information Grid: Current Field & Active Alerts */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column (8 cols): Current Field & Active Alerts */}
+        {/* Left Column (7 cols): Current Field & Active Alerts */}
         <div className="lg:col-span-7 space-y-6">
-          {/* A. Current Field Card */}
+          {/* A. Current Field Status Card */}
           <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
@@ -203,7 +141,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
                 onClick={() => onNavigate('map')}
                 className="text-xs font-bold text-forest-700 hover:text-forest-900 flex items-center gap-1"
               >
-                <span>View Full Map</span>
+                <span>Interactive Map</span>
                 <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -225,7 +163,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
                   <div className="flex items-center gap-3">
                     <div className="text-right">
                       <span className="text-2xl font-black text-forest-950">
-                        {currentField.healthPercentage}%
+                        {currentField.healthPercentage !== null ? `${currentField.healthPercentage}%` : '—'}
                       </span>
                       <p className="text-[10px] font-bold text-forest-700 uppercase">Crop Health</p>
                     </div>
@@ -235,7 +173,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
                           ? 'bg-emerald-100 text-emerald-800'
                           : currentField.status === 'At Risk'
                           ? 'bg-amber-100 text-amber-800'
-                          : 'bg-rose-100 text-rose-800'
+                          : currentField.status === 'Critical'
+                          ? 'bg-rose-100 text-rose-800'
+                          : 'bg-slate-100 text-slate-700'
                       }`}
                     >
                       {currentField.status}
@@ -243,49 +183,55 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
                   </div>
                 </div>
 
-                {/* Health Breakdown progress bar */}
-                <div>
-                  <div className="flex justify-between text-xs font-medium text-slate-600 mb-1.5">
-                    <span>Field Condition Distribution</span>
-                    <span className="font-bold text-slate-800">
-                      {currentField.healthBreakdown.healthy}% Healthy
-                    </span>
+                {/* Crop Health Distribution (Section 26 & 27: No fake values for unanalyzed fields) */}
+                {currentField.healthBreakdown ? (
+                  <div>
+                    <div className="flex justify-between text-xs font-medium text-slate-600 mb-1.5">
+                      <span>Field Condition Distribution</span>
+                      <span className="font-bold text-slate-800">
+                        {currentField.healthBreakdown.healthy}% Healthy
+                      </span>
+                    </div>
+                    <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden flex">
+                      <div
+                        style={{ width: `${currentField.healthBreakdown.healthy}%` }}
+                        className="bg-emerald-500 h-full"
+                        title="Healthy"
+                      />
+                      <div
+                        style={{ width: `${currentField.healthBreakdown.atRisk}%` }}
+                        className="bg-amber-400 h-full"
+                        title="At Risk"
+                      />
+                      <div
+                        style={{ width: `${currentField.healthBreakdown.critical}%` }}
+                        className="bg-rose-500 h-full"
+                        title="Critical"
+                      />
+                    </div>
+                    <div className="flex items-center gap-4 mt-2 text-[11px] text-slate-500">
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                        Healthy ({currentField.healthBreakdown.healthy}%)
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-amber-400" />
+                        At Risk ({currentField.healthBreakdown.atRisk}%)
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-rose-500" />
+                        Critical ({currentField.healthBreakdown.critical}%)
+                      </span>
+                    </div>
                   </div>
-                  <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden flex">
-                    <div
-                      style={{ width: `${currentField.healthBreakdown.healthy}%` }}
-                      className="bg-emerald-500 h-full"
-                      title="Healthy"
-                    />
-                    <div
-                      style={{ width: `${currentField.healthBreakdown.atRisk}%` }}
-                      className="bg-amber-400 h-full"
-                      title="At Risk"
-                    />
-                    <div
-                      style={{ width: `${currentField.healthBreakdown.critical}%` }}
-                      className="bg-rose-500 h-full"
-                      title="Critical"
-                    />
+                ) : (
+                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-500 text-center">
+                    No crop health analysis data available yet for this field.
                   </div>
-                  <div className="flex items-center gap-4 mt-2 text-[11px] text-slate-500">
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                      Healthy ({currentField.healthBreakdown.healthy}%)
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-amber-400" />
-                      At Risk ({currentField.healthBreakdown.atRisk}%)
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-rose-500" />
-                      Critical ({currentField.healthBreakdown.critical}%)
-                    </span>
-                  </div>
-                </div>
+                )}
 
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/70 text-xs text-slate-600 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
+                  <span className="flex items-center gap-1.5 font-mono">
                     <MapPin className="w-4 h-4 text-forest-600" />
                     GPS: {currentGps.lat.toFixed(4)}° N, {currentGps.lng.toFixed(4)}° E
                   </span>
@@ -293,7 +239,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
                     onClick={() => onNavigate('crop-health')}
                     className="font-bold text-forest-700 hover:underline"
                   >
-                    Health Breakdown & History &rarr;
+                    Crop Health &rarr;
                   </button>
                 </div>
               </div>
@@ -331,93 +277,112 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
             </div>
 
             <div className="space-y-3">
-              {activeAlerts.map(prob => (
-                <div
-                  key={prob.id}
-                  className="p-4 rounded-2xl border border-amber-200 bg-amber-50/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
-                >
-                  <div className="flex items-start gap-3">
-                    {prob.imageUrl && (
-                      <img
-                        src={prob.imageUrl}
-                        alt={prob.crop}
-                        className="w-14 h-14 rounded-xl object-cover border border-amber-300 shrink-0"
-                      />
-                    )}
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-amber-200 text-amber-900">
-                          {prob.crop}
-                        </span>
-                        <span className="text-xs text-slate-500">{prob.reportedAt}</span>
+              {activeAlerts.length === 0 ? (
+                <div className="p-6 text-center text-slate-400 text-xs">
+                  No active crop alerts or pathology problems in this field.
+                </div>
+              ) : (
+                activeAlerts.map(prob => (
+                  <div
+                    key={prob.id}
+                    className="p-4 rounded-2xl border border-amber-200 bg-amber-50/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+                  >
+                    <div className="flex items-start gap-3">
+                      {prob.imageUrl && (
+                        <img
+                          src={prob.imageUrl}
+                          alt={prob.crop}
+                          className="w-14 h-14 rounded-xl object-cover border border-amber-300 shrink-0"
+                        />
+                      )}
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-amber-200 text-amber-900">
+                            {prob.crop}
+                          </span>
+                          <span className="text-xs text-slate-500">{prob.reportedAt}</span>
+                        </div>
+                        <h4 className="text-xs font-bold text-slate-900 mt-1">
+                          {prob.aiAnalysis?.possibleDisease || 'Possible Crop Anomaly'}
+                        </h4>
+                        <p className="text-xs text-slate-600 mt-0.5 line-clamp-1">
+                          {prob.aiAnalysis?.recommendedAction || prob.farmerNote}
+                        </p>
                       </div>
-                      <h4 className="text-xs font-bold text-slate-900 mt-1">
-                        {prob.aiAnalysis?.possibleDisease || 'Possible Crop Anomaly'}
-                      </h4>
-                      <p className="text-xs text-slate-600 mt-0.5 line-clamp-1">
-                        {prob.aiAnalysis?.recommendedAction || prob.farmerNote}
-                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      {prob.aiAnalysis && (
+                        <span className="text-xs font-extrabold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full">
+                          CV: {prob.aiAnalysis.confidence}%
+                        </span>
+                      )}
                     </div>
                   </div>
-                  <div className="shrink-0 text-right">
-                    {prob.aiAnalysis && (
-                      <span className="text-xs font-extrabold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full">
-                        AI: {prob.aiAnalysis.confidence}% Conf.
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </div>
 
         {/* Right Column (5 cols): Weather & Today's Tasks */}
         <div className="lg:col-span-5 space-y-6">
-          {/* B. Weather Card */}
+          {/* B. Real Weather Card (Section 12 & 13) */}
           <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <CloudSun className="w-5 h-5 text-forest-600" />
-                <h3 className="font-extrabold text-slate-900 text-base">Field Weather</h3>
+                <h3 className="font-extrabold text-slate-900 text-base">Field Weather (Live)</h3>
               </div>
-              <span className="text-xs font-bold text-forest-700">
-                {weather.fieldName}
-              </span>
+              <button
+                onClick={() => onNavigate('weather')}
+                className="text-xs font-bold text-forest-700 hover:text-forest-900"
+              >
+                Full Weather &rarr;
+              </button>
             </div>
 
-            <div className="flex items-center justify-between p-4 rounded-2xl bg-gradient-to-br from-forest-50 to-emerald-50 border border-forest-100">
-              <div>
-                <span className="text-4xl font-black text-slate-900">{weather.temperature}°C</span>
-                <p className="text-xs font-bold text-forest-900 mt-0.5">{weather.condition}</p>
-                <p className="text-[11px] text-slate-500">Feels like {weather.feelsLike}°C</p>
-              </div>
-              <div className="text-right space-y-1 text-xs text-slate-700">
-                <div>
-                  <span className="text-slate-500">Humidity:</span>{' '}
-                  <strong>{weather.humidity}%</strong>
+            {weather && !weather.isError ? (
+              <>
+                <div className="flex items-center justify-between p-4 rounded-2xl bg-gradient-to-br from-forest-50 to-emerald-50 border border-forest-100">
+                  <div>
+                    <span className="text-4xl font-black text-slate-900">{weather.temperature}°C</span>
+                    <p className="text-xs font-bold text-forest-900 mt-0.5">{weather.condition}</p>
+                    <p className="text-[11px] text-slate-500">Feels like {weather.feelsLike}°C • {weather.fieldName}</p>
+                  </div>
+                  <div className="text-right space-y-1 text-xs text-slate-700">
+                    <div className="flex items-center justify-end gap-1">
+                      <Droplets className="w-3.5 h-3.5 text-sky-600" />
+                      <span>{weather.humidity}% Humidity</span>
+                    </div>
+                    <div className="flex items-center justify-end gap-1">
+                      <Wind className="w-3.5 h-3.5 text-slate-500" />
+                      <span>{weather.windKmh} km/h ({weather.windDirectionCompass})</span>
+                    </div>
+                    <div>
+                      Rain Prob: <strong className="text-blue-700">{weather.rainProbability}%</strong>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-slate-500">Wind:</span>{' '}
-                  <strong>{weather.windKmh} km/h</strong>
-                </div>
-                <div>
-                  <span className="text-slate-500">Rain Prob:</span>{' '}
-                  <strong className="text-blue-700">{weather.rainProbability}%</strong>
-                </div>
-              </div>
-            </div>
 
-            {/* Spray Advisory Banner */}
-            <div className="mt-3 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs">
-              <div className="flex items-center justify-between mb-1">
-                <span className="font-bold text-slate-700">Spraying Condition:</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800">
-                  {weather.sprayAdvisory.status}
-                </span>
+                <div className="mt-3 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-slate-700">Spraying Condition:</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                      weather.sprayAdvisory.status === 'Optimal'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-amber-100 text-amber-800'
+                    }`}>
+                      {weather.sprayAdvisory.status}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">{weather.sprayAdvisory.reason}</p>
+                </div>
+              </>
+            ) : (
+              <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">
+                Weather data temporarily unavailable for this location.
               </div>
-              <p className="text-[11px] text-slate-500">{weather.sprayAdvisory.reason}</p>
-            </div>
+            )}
           </div>
 
           {/* C. Today's Tasks */}
@@ -437,7 +402,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
 
             <div className="space-y-2.5">
               {todayTasks.length === 0 ? (
-                <p className="text-xs text-slate-400 text-center py-6">No tasks scheduled for today.</p>
+                <p className="text-xs text-slate-400 text-center py-6">No tasks scheduled for this field today.</p>
               ) : (
                 todayTasks.map(task => (
                   <div
@@ -474,7 +439,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
         </div>
       </div>
 
-      {/* 4. Bottom Grid: E. Recent Observations & F. Recent Photos/Videos & Assistant Timeline */}
+      {/* 3. Bottom Grid: E. Recent Observations, F. Media, & Assistant Timeline */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Recent Observations (4 cols) */}
         <div className="lg:col-span-4 bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs">
@@ -491,20 +456,24 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
             </button>
           </div>
           <div className="space-y-3">
-            {observations.slice(0, 3).map(obs => (
-              <div key={obs.id} className="p-3 rounded-2xl bg-slate-50 border border-slate-200/70">
-                <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1">
-                  <span className="font-bold text-forest-800 uppercase">{obs.crop}</span>
-                  <span>{obs.timestamp}</span>
+            {recentObs.length === 0 ? (
+              <p className="text-xs text-slate-400 text-center py-6">No observations recorded in this field.</p>
+            ) : (
+              recentObs.slice(0, 3).map(obs => (
+                <div key={obs.id} className="p-3 rounded-2xl bg-slate-50 border border-slate-200/70">
+                  <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1">
+                    <span className="font-bold text-forest-800 uppercase">{obs.crop}</span>
+                    <span>{obs.timestamp}</span>
+                  </div>
+                  <h4 className="text-xs font-bold text-slate-900">{obs.title}</h4>
+                  {obs.voiceTranscript && (
+                    <p className="text-[11px] italic text-forest-800 mt-1 bg-forest-50 p-2 rounded-lg border border-forest-100">
+                      {obs.voiceTranscript}
+                    </p>
+                  )}
                 </div>
-                <h4 className="text-xs font-bold text-slate-900">{obs.title}</h4>
-                {obs.voiceTranscript && (
-                  <p className="text-[11px] italic text-forest-800 mt-1 bg-forest-50 p-2 rounded-lg border border-forest-100">
-                    {obs.voiceTranscript}
-                  </p>
-                )}
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
@@ -513,7 +482,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Camera className="w-5 h-5 text-forest-600" />
-              <h3 className="font-extrabold text-slate-900 text-base">Media Feed</h3>
+              <h3 className="font-extrabold text-slate-900 text-base">Field Media</h3>
             </div>
             <button
               onClick={() => onNavigate('media')}
@@ -522,28 +491,32 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
               Gallery &rarr;
             </button>
           </div>
-          <div className="grid grid-cols-2 gap-2.5">
-            {mediaItems.slice(0, 4).map(item => (
-              <div
-                key={item.id}
-                onClick={() => onNavigate('media')}
-                className="relative rounded-2xl overflow-hidden aspect-square border border-slate-200 cursor-pointer group"
-              >
-                <img
-                  src={item.thumbnailUrl}
-                  alt={item.caption}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2 text-white text-[10px]">
-                  <p className="font-bold line-clamp-1">{item.caption}</p>
-                  <p className="text-slate-300 text-[9px]">{item.timestamp}</p>
+          {recentMedia.length === 0 ? (
+            <p className="text-xs text-slate-400 text-center py-6">No media captured in this field yet.</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-2.5">
+              {recentMedia.slice(0, 4).map(item => (
+                <div
+                  key={item.id}
+                  onClick={() => onNavigate('media')}
+                  className="relative rounded-2xl overflow-hidden aspect-square border border-slate-200 cursor-pointer group"
+                >
+                  <img
+                    src={item.thumbnailUrl}
+                    alt={item.caption}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2 text-white text-[10px]">
+                    <p className="font-bold line-clamp-1">{item.caption}</p>
+                    <p className="text-slate-300 text-[9px]">{item.timestamp}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Assistant Activity Timeline (4 cols) - Master Prompt Section 9 */}
+        {/* Assistant Activity Timeline (4 cols) */}
         <div className="lg:col-span-4 bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
@@ -574,13 +547,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
           </div>
         </div>
       </div>
-
-      {/* Quick Action Sheet Modal */}
-      <QuickActionModal
-        action={quickAction}
-        onClose={() => setQuickAction(null)}
-        onNavigateToAssistant={() => onNavigate('assistant')}
-      />
     </div>
   );
 };

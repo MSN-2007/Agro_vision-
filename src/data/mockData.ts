@@ -6,7 +6,6 @@ import {
   ProblemReport,
   FarmTask,
   FarmReminder,
-  FieldWeather,
   SmartGlassesDevice,
   WellBeingMetric,
   FarmNotification,
@@ -14,7 +13,7 @@ import {
   ActivityLogItem
 } from '../types/agro';
 
-// Farm Coordinates around a lush fertile agro-belt
+// Farm Coordinates around a lush fertile agro-belt in Karnataka, India
 export const INITIAL_USER: FarmerUser = {
   id: 'user-ravi-01',
   name: 'Ravi Kumar',
@@ -32,6 +31,7 @@ export const INITIAL_FARMS: Farm[] = [
     center: { lat: 13.2985, lng: 77.5350 },
     totalAreaAcres: 8.5,
     createdAt: '2024-03-15',
+    isDemoFarm: true,
     fields: [
       {
         id: 'field-mango-01',
@@ -54,7 +54,8 @@ export const INITIAL_FARMS: Farm[] = [
           { lat: 13.2978, lng: 77.5365 },
           { lat: 13.2974, lng: 77.5330 }
         ],
-        notes: 'High-density plantation. Drip irrigated. Pruning completed in May.'
+        notes: 'High-density plantation. Drip irrigated. Pruning completed in May.',
+        isDemoField: true
       },
       {
         id: 'field-tomato-02',
@@ -77,7 +78,8 @@ export const INITIAL_FARMS: Farm[] = [
           { lat: 13.2952, lng: 77.5368 },
           { lat: 13.2950, lng: 77.5338 }
         ],
-        notes: 'Trellis supported. Early blight susceptibility observed on west ridge.'
+        notes: 'Trellis supported. Early blight susceptibility observed on west ridge.',
+        isDemoField: true
       },
       {
         id: 'field-strawberry-03',
@@ -100,7 +102,8 @@ export const INITIAL_FARMS: Farm[] = [
           { lat: 13.2968, lng: 77.5398 },
           { lat: 13.2965, lng: 77.5370 }
         ],
-        notes: 'Raised beds with black plastic mulch. Fertigation running 3x/week.'
+        notes: 'Raised beds with black plastic mulch. Fertigation running 3x/week.',
+        isDemoField: true
       }
     ]
   }
@@ -326,78 +329,6 @@ export const INITIAL_REMINDERS: FarmReminder[] = [
   }
 ];
 
-export const FIELD_WEATHER_DATA: Record<string, FieldWeather> = {
-  'field-mango-01': {
-    fieldId: 'field-mango-01',
-    fieldName: 'Mango Plantation',
-    temperature: 28,
-    feelsLike: 29,
-    condition: 'Partly Cloudy',
-    conditionIcon: 'cloud-sun',
-    humidity: 62,
-    windKmh: 11,
-    rainProbability: 30,
-    rainfallMm: 0.0,
-    sprayAdvisory: {
-      status: 'Optimal',
-      reason: 'Wind speed is under 12 km/h. Rain probability low for next 4 hours.'
-    },
-    forecast: [
-      { day: 'Today', temp: 28, condition: 'Partly Cloudy', rainProb: 30 },
-      { day: 'Mon', temp: 29, condition: 'Scattered Showers', rainProb: 65 },
-      { day: 'Tue', temp: 27, condition: 'Cloudy', rainProb: 40 },
-      { day: 'Wed', temp: 30, condition: 'Sunny', rainProb: 15 },
-      { day: 'Thu', temp: 31, condition: 'Mostly Sunny', rainProb: 10 }
-    ]
-  },
-  'field-tomato-02': {
-    fieldId: 'field-tomato-02',
-    fieldName: 'Tomato Field',
-    temperature: 29,
-    feelsLike: 31,
-    condition: 'Overcast',
-    conditionIcon: 'cloud',
-    humidity: 74,
-    windKmh: 14,
-    rainProbability: 60,
-    rainfallMm: 1.2,
-    sprayAdvisory: {
-      status: 'Caution',
-      reason: 'High relative humidity (74%) and 60% chance of showers by late afternoon.'
-    },
-    forecast: [
-      { day: 'Today', temp: 29, condition: 'Overcast', rainProb: 60 },
-      { day: 'Mon', temp: 28, condition: 'Moderate Rain', rainProb: 75 },
-      { day: 'Tue', temp: 26, condition: 'Thunderstorm', rainProb: 80 },
-      { day: 'Wed', temp: 29, condition: 'Partly Cloudy', rainProb: 30 },
-      { day: 'Thu', temp: 30, condition: 'Clear', rainProb: 15 }
-    ]
-  },
-  'field-strawberry-03': {
-    fieldId: 'field-strawberry-03',
-    fieldName: 'Strawberry Field',
-    temperature: 27,
-    feelsLike: 27,
-    condition: 'Clear & Mild',
-    conditionIcon: 'sun',
-    humidity: 58,
-    windKmh: 8,
-    rainProbability: 20,
-    rainfallMm: 0.0,
-    sprayAdvisory: {
-      status: 'Optimal',
-      reason: 'Gentle breeze 8 km/h and dry canopy ideal for fertigation.'
-    },
-    forecast: [
-      { day: 'Today', temp: 27, condition: 'Clear', rainProb: 20 },
-      { day: 'Mon', temp: 28, condition: 'Partly Cloudy', rainProb: 45 },
-      { day: 'Tue', temp: 26, condition: 'Rain', rainProb: 70 },
-      { day: 'Wed', temp: 28, condition: 'Sunny', rainProb: 10 },
-      { day: 'Thu', temp: 29, condition: 'Sunny', rainProb: 5 }
-    ]
-  }
-};
-
 export const INITIAL_DEVICE: SmartGlassesDevice = {
   model: 'AgroVision Pro Glasses (Gen 2)',
   connected: true,
@@ -454,7 +385,8 @@ export const INITIAL_NOTIFICATIONS: FarmNotification[] = [
     title: 'Glasses Sync Complete',
     message: 'All 3 voice notes and 2 high-res captures synced successfully.',
     timestamp: '07:00 AM',
-    read: true
+    read: true,
+    fieldId: null
   }
 ];
 

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import {
   Farm,
   Field,
@@ -26,7 +26,6 @@ import {
   INITIAL_PROBLEMS,
   INITIAL_TASKS,
   INITIAL_REMINDERS,
-  FIELD_WEATHER_DATA,
   INITIAL_DEVICE,
   INITIAL_WELLBEING,
   INITIAL_NOTIFICATIONS,
@@ -35,6 +34,7 @@ import {
 } from '../data/mockData';
 import { findContainingField, calculatePolygonAreaAcres } from '../services/geofence';
 import { speechService } from '../services/speechService';
+import { fetchFieldWeather } from '../services/weatherService';
 import confetti from 'canvas-confetti';
 
 export interface ToastMessage {
@@ -57,15 +57,20 @@ interface FarmContextType {
   selectField: (fieldId: string | null) => void;
   addFarm: (name: string, locationName: string) => void;
   updateFarm: (farmId: string, updates: Partial<Farm>) => void;
-  addField: (farmId: string, fieldData: Omit<Field, 'id' | 'farmId'>) => void;
+  addField: (farmId: string, fieldData: Omit<Field, 'id' | 'farmId'>) => Field;
   updateFieldBoundary: (fieldId: string, newBoundary: LatLng[]) => void;
+  deleteField: (fieldId: string) => void;
   
-  // Observations
+  // Real GPS Locate Me
+  locateMe: () => void;
+
+  // Observations (strictly field scoped)
   observations: Observation[];
+  getFieldObservations: (fieldId?: string | null) => Observation[];
   addObservation: (data: {
     title: string;
     notes: string;
-    fieldId?: string;
+    fieldId?: string | null;
     source?: ObservationSource;
     mediaUrl?: string;
     voiceTranscript?: string;
@@ -73,27 +78,33 @@ interface FarmContextType {
   resolveObservation: (id: string) => void;
   deleteObservation: (id: string) => void;
 
-  // Media
+  // Media (strictly field scoped)
   mediaItems: MediaItem[];
+  getFieldMedia: (fieldId?: string | null) => MediaItem[];
   addMediaItem: (item: Omit<MediaItem, 'id' | 'timestamp'>) => MediaItem;
 
-  // Problems & Alerts
+  // Problems & Alerts (strictly field scoped)
   problems: ProblemReport[];
+  getFieldProblems: (fieldId?: string | null) => ProblemReport[];
   addProblemReport: (data: Omit<ProblemReport, 'id' | 'reportedAt'>) => ProblemReport;
   resolveProblem: (id: string) => void;
 
-  // Tasks & Reminders
+  // Tasks & Reminders (strictly field scoped)
   tasks: FarmTask[];
-  addTask: (title: string, fieldId: string, dueDate: string, notes?: string, voiceCreated?: boolean) => void;
+  getFieldTasks: (fieldId?: string | null) => FarmTask[];
+  addTask: (title: string, fieldId: string | null, dueDate: string, notes?: string, voiceCreated?: boolean) => void;
   toggleTaskStatus: (id: string) => void;
   deleteTask: (id: string) => void;
   reminders: FarmReminder[];
-  addReminder: (title: string, timeStr: string, fieldId: string) => void;
+  getFieldReminders: (fieldId?: string | null) => FarmReminder[];
+  addReminder: (title: string, timeStr: string, fieldId: string | null) => void;
   dismissReminder: (id: string) => void;
 
-  // Weather
+  // Real Weather API Integration
   weatherData: Record<string, FieldWeather>;
-  getFieldWeather: (fieldId: string) => FieldWeather;
+  getFieldWeather: (fieldId?: string | null) => FieldWeather | null;
+  refreshCurrentWeather: () => Promise<void>;
+  isWeatherLoading: boolean;
 
   // Device
   device: SmartGlassesDevice;
@@ -140,7 +151,6 @@ interface FarmContextType {
 const FarmContext = createContext<FarmContextType | undefined>(undefined);
 
 export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // Load saved state or default to realistic mock data
   const [user, setUser] = useState<FarmerUser>(() => {
     const saved = localStorage.getItem('agrovision_user');
     return saved ? JSON.parse(saved) : INITIAL_USER;
@@ -155,7 +165,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const currentFarm = farms.find(f => f.id === currentFarmId) || farms[0];
 
   // GPS coordinates - Defaults to center of Mango Plantation
-  const [currentGps, setCurrentGps] = useState<LatLng>({ lat: 13.2990, lng: 77.5345 });
+  const [currentGps, setCurrentGpsState] = useState<LatLng>({ lat: 13.2990, lng: 77.5345 });
 
   // Automatically detect field using point-in-polygon
   const [currentField, setCurrentField] = useState<Field | null>(() => {
@@ -187,7 +197,10 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return saved ? JSON.parse(saved) : INITIAL_REMINDERS;
   });
 
-  const [weatherData] = useState<Record<string, FieldWeather>>(FIELD_WEATHER_DATA);
+  // Real weather state map (fieldId -> FieldWeather)
+  const [weatherData, setWeatherData] = useState<Record<string, FieldWeather>>({});
+  const [isWeatherLoading, setIsWeatherLoading] = useState<boolean>(false);
+
   const [device, setDevice] = useState<SmartGlassesDevice>(INITIAL_DEVICE);
   const [wellBeing, setWellBeing] = useState<WellBeingMetric>(INITIAL_WELLBEING);
   const [notifications, setNotifications] = useState<FarmNotification[]>(INITIAL_NOTIFICATIONS);
@@ -197,7 +210,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isNotificationDrawerOpen, setIsNotificationDrawerOpen] = useState<boolean>(false);
   const [isBriefingModalOpen, setIsBriefingModalOpen] = useState<boolean>(false);
 
-  // Sync state to localStorage
+  // Sync to localStorage
   useEffect(() => {
     localStorage.setItem('agrovision_farms', JSON.stringify(farms));
   }, [farms]);
@@ -223,7 +236,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [reminders]);
 
   // Toast Helper
-  const showToast = (title: string, message: string, type: ToastMessage['type'] = 'info') => {
+  const showToast = useCallback((title: string, message: string, type: ToastMessage['type'] = 'info') => {
     const newToast: ToastMessage = {
       id: 'toast-' + Date.now() + Math.random().toString(36).substring(2, 5),
       title,
@@ -235,28 +248,13 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== newToast.id));
     }, 5500);
-  };
+  }, []);
 
   const dismissToast = (id: string) => {
     setToasts(prev => prev.filter(t => t.id !== id));
   };
 
-  // When GPS updates, evaluate Geo-fence
-  const handleGpsUpdate = (coords: LatLng) => {
-    setCurrentGps(coords);
-    const field = findContainingField(coords, currentFarm?.fields || []);
-    if (field && field.id !== currentField?.id) {
-      setCurrentField(field);
-      showToast('Field Identified', `Currently inside ${field.name}`, 'success');
-      addActivityLog('Geo-fence entered', `GPS detected inside ${field.name}`, field.name, 'gps');
-    } else if (!field && currentField !== null) {
-      setCurrentField(null);
-      showToast('Boundary Alert', 'Location detected, but no registered field was found.', 'warning');
-      addActivityLog('Boundary exited', 'Moved outside registered field boundaries', undefined, 'gps');
-    }
-  };
-
-  const addActivityLog = (
+  const addActivityLog = useCallback((
     title: string,
     detail: string,
     field?: string,
@@ -271,13 +269,103 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       type
     };
     setActivityLog(prev => [newLog, ...prev]);
+  }, [currentField?.name]);
+
+  // When GPS updates, evaluate Geo-fence
+  const handleGpsUpdate = useCallback((coords: LatLng) => {
+    setCurrentGpsState(coords);
+    const field = findContainingField(coords, currentFarm?.fields || []);
+    if (field && field.id !== currentField?.id) {
+      setCurrentField(field);
+      showToast('Field Identified', `Currently inside ${field.name}`, 'success');
+      addActivityLog('Geo-fence entered', `GPS detected inside ${field.name}`, field.name, 'gps');
+    } else if (!field && currentField !== null) {
+      setCurrentField(null);
+      showToast('Boundary Alert', 'Location detected, but no registered field was found.', 'warning');
+      addActivityLog('Boundary exited', 'Moved outside registered field boundaries', undefined, 'gps');
+    }
+  }, [currentFarm?.fields, currentField, showToast, addActivityLog]);
+
+  // Real GPS "Locate Me"
+  const locateMe = () => {
+    if (!navigator.geolocation) {
+      showToast('GPS Unavailable', 'Location services not supported by browser.', 'error');
+      return;
+    }
+    showToast('Locating GPS...', 'Querying device satellite positioning', 'info');
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        handleGpsUpdate(coords);
+        const inside = findContainingField(coords, currentFarm?.fields || []);
+        if (inside) {
+          showToast('Located', `You are inside ${inside.name}`, 'success');
+        } else {
+          showToast('Located', 'You are outside registered fields.', 'warning');
+        }
+      },
+      err => {
+        // Fallback gracefully without crash
+        showToast('GPS Unavailable', 'Could not retrieve hardware location. Check browser permissions.', 'warning');
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
   };
 
+  // Weather fetching for a specific field or current context
+  const loadWeatherForField = useCallback(async (field: Field, force = false) => {
+    setIsWeatherLoading(true);
+    try {
+      const weather = await fetchFieldWeather(
+        field.id,
+        field.name,
+        field.center.lat,
+        field.center.lng,
+        force
+      );
+      setWeatherData(prev => ({
+        ...prev,
+        [field.id]: weather
+      }));
+    } catch {
+      // Handled in weatherService
+    } finally {
+      setIsWeatherLoading(false);
+    }
+  }, []);
+
+  // Fetch live weather when currentField changes
+  useEffect(() => {
+    if (currentField) {
+      loadWeatherForField(currentField);
+    } else if (currentFarm && currentFarm.fields.length > 0) {
+      loadWeatherForField(currentFarm.fields[0]);
+    }
+  }, [currentField, currentFarm, loadWeatherForField]);
+
+  const refreshCurrentWeather = async () => {
+    const target = currentField || currentFarm.fields[0];
+    if (target) {
+      await loadWeatherForField(target, true);
+      showToast('Weather Refreshed', `Live conditions updated for ${target.name}`, 'success');
+    }
+  };
+
+  const getFieldWeather = (fieldId?: string | null): FieldWeather | null => {
+    const id = fieldId || currentField?.id || currentFarm.fields[0]?.id;
+    if (!id) return null;
+    return weatherData[id] || null;
+  };
+
+  // Navigation / Selection
   const selectFarm = (farmId: string) => {
     setCurrentFarmId(farmId);
     const targetFarm = farms.find(f => f.id === farmId);
     if (targetFarm && targetFarm.fields.length > 0) {
       setCurrentField(targetFarm.fields[0]);
+      setCurrentGpsState(targetFarm.fields[0].center);
+    } else {
+      setCurrentField(null);
     }
   };
 
@@ -289,10 +377,11 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const f = currentFarm.fields.find(field => field.id === fieldId);
     if (f) {
       setCurrentField(f);
-      setCurrentGps(f.center);
+      setCurrentGpsState(f.center);
     }
   };
 
+  // Farm Creation (Strict Data Isolation - Master Prompt Section 1 & 2)
   const addFarm = (name: string, locationName: string) => {
     const newFarm: Farm = {
       id: 'farm-' + Date.now(),
@@ -301,22 +390,31 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       center: { lat: 13.2985, lng: 77.5350 },
       totalAreaAcres: 0,
       createdAt: new Date().toISOString().split('T')[0],
+      isDemoFarm: false,
       fields: []
     };
     setFarms(prev => [...prev, newFarm]);
-    showToast('Farm Created', `"${name}" added to your farm records.`, 'success');
+    setCurrentFarmId(newFarm.id);
+    setCurrentField(null);
+    showToast('Farm Created', `"${name}" added. It starts with zero fields and zero records.`, 'success');
   };
 
   const updateFarm = (farmId: string, updates: Partial<Farm>) => {
     setFarms(prev => prev.map(f => f.id === farmId ? { ...f, ...updates } : f));
   };
 
-  const addField = (farmId: string, fieldData: Omit<Field, 'id' | 'farmId'>) => {
+  // Field Creation (Strict Data Isolation - Master Prompt Sections 1, 26, 27, 28, 29, 30, 31)
+  const addField = (farmId: string, fieldData: Omit<Field, 'id' | 'farmId'>): Field => {
     const newField: Field = {
       ...fieldData,
       id: 'field-' + Date.now(),
-      farmId
+      farmId,
+      healthPercentage: null, // Starts as Unanalyzed - No fake percentages
+      healthBreakdown: null,
+      status: 'Unanalyzed',
+      isDemoField: false
     };
+
     setFarms(prev => prev.map(f => {
       if (f.id === farmId) {
         return {
@@ -327,15 +425,22 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       return f;
     }));
-    showToast('Field Added', `"${newField.name}" added to farm.`, 'success');
+
+    setCurrentField(newField);
+    setCurrentGpsState(newField.center);
+    showToast(
+      'Field Registered',
+      `"${newField.name}" created with 0 observations, 0 media, 0 tasks, and no fake data.`,
+      'success'
+    );
+    return newField;
   };
 
   const updateFieldBoundary = (fieldId: string, newBoundary: LatLng[]) => {
     const newArea = calculatePolygonAreaAcres(newBoundary);
-    // Center point
     const center = {
-      lat: newBoundary.reduce((acc, p) => acc + p.lat, 0) / newBoundary.length,
-      lng: newBoundary.reduce((acc, p) => acc + p.lng, 0) / newBoundary.length
+      lat: newBoundary.reduce((acc, p) => acc + p.lat, 0) / (newBoundary.length || 1),
+      lng: newBoundary.reduce((acc, p) => acc + p.lng, 0) / (newBoundary.length || 1)
     };
 
     setFarms(prev => prev.map(f => ({
@@ -353,30 +458,88 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       })
     })));
 
-    showToast('Boundary Saved', `Geo-fence boundary updated (${newArea} acres).`, 'success');
+    // If updating current field, sync currentField state
+    if (currentField?.id === fieldId) {
+      setCurrentField(prev => prev ? { ...prev, boundary: newBoundary, areaAcres: newArea || prev.areaAcres, center } : null);
+    }
+
+    showToast('Field Boundary Updated', `Boundary saved (${newArea} acres).`, 'success');
   };
 
+  const deleteField = (fieldId: string) => {
+    setFarms(prev => prev.map(f => ({
+      ...f,
+      fields: f.fields.filter(field => field.id !== fieldId)
+    })));
+    // Also clean up field-specific records
+    setObservations(prev => prev.filter(o => o.fieldId !== fieldId));
+    setMediaItems(prev => prev.filter(m => m.fieldId !== fieldId));
+    setProblems(prev => prev.filter(p => p.fieldId !== fieldId));
+    setTasks(prev => prev.filter(t => t.fieldId !== fieldId));
+    setReminders(prev => prev.filter(r => r.fieldId !== fieldId));
+
+    if (currentField?.id === fieldId) {
+      setCurrentField(null);
+    }
+    showToast('Field Deleted', 'Field and its records removed.', 'info');
+  };
+
+  // Strict Field-Specific Selectors (Master Prompt Section 2 & 28-31)
+  const getFieldObservations = (fieldId?: string | null): Observation[] => {
+    if (fieldId === undefined) fieldId = currentField?.id;
+    if (!fieldId) return [];
+    return observations.filter(o => o.fieldId === fieldId);
+  };
+
+  const getFieldMedia = (fieldId?: string | null): MediaItem[] => {
+    if (fieldId === undefined) fieldId = currentField?.id;
+    if (!fieldId) return [];
+    return mediaItems.filter(m => m.fieldId === fieldId);
+  };
+
+  const getFieldProblems = (fieldId?: string | null): ProblemReport[] => {
+    if (fieldId === undefined) fieldId = currentField?.id;
+    if (!fieldId) return [];
+    return problems.filter(p => p.fieldId === fieldId);
+  };
+
+  const getFieldTasks = (fieldId?: string | null): FarmTask[] => {
+    if (fieldId === undefined) fieldId = currentField?.id;
+    if (!fieldId) return [];
+    return tasks.filter(t => t.fieldId === fieldId);
+  };
+
+  const getFieldReminders = (fieldId?: string | null): FarmReminder[] => {
+    if (fieldId === undefined) fieldId = currentField?.id;
+    if (!fieldId) return [];
+    return reminders.filter(r => r.fieldId === fieldId);
+  };
+
+  // Observations CRUD
   const addObservation = (data: {
     title: string;
     notes: string;
-    fieldId?: string;
+    fieldId?: string | null;
     source?: ObservationSource;
     mediaUrl?: string;
     voiceTranscript?: string;
   }): Observation => {
-    const targetField = data.fieldId
-      ? currentFarm.fields.find(f => f.id === data.fieldId) || currentField
-      : currentField;
+    // If fieldId is not provided, associate with currentField if inside, otherwise null
+    const targetFieldId = data.fieldId !== undefined
+      ? data.fieldId
+      : (currentField ? currentField.id : null);
+
+    const targetField = currentFarm.fields.find(f => f.id === targetFieldId) || null;
 
     const newObs: Observation = {
       id: 'obs-' + Date.now(),
       title: data.title,
       notes: data.notes,
       farmId: currentFarm.id,
-      fieldId: targetField ? targetField.id : 'unassigned',
-      crop: targetField ? targetField.crop : 'Unassigned Crop',
+      fieldId: targetFieldId,
+      crop: targetField ? targetField.crop : 'Unassigned',
       location: currentGps,
-      locationName: targetField ? targetField.name : 'Unknown GPS Location',
+      locationName: targetField ? targetField.name : 'Outside Registered Fields',
       timestamp: 'Today • ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       source: data.source || 'manual',
       status: 'Needs Attention',
@@ -387,7 +550,11 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     setObservations(prev => [newObs, ...prev]);
     speechService.playSuccessChime();
-    showToast('Observation Saved', `Associated with ${targetField?.name || 'Current Location'}`, 'success');
+    showToast(
+      'Observation Saved',
+      targetField ? `Associated with ${targetField.name}` : 'Saved without registered field assignment',
+      'success'
+    );
     addActivityLog('Observation created', data.title, targetField?.name, 'observation');
     return newObs;
   };
@@ -400,7 +567,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const deleteObservation = (id: string) => {
     setObservations(prev => prev.filter(o => o.id !== id));
-    showToast('Deleted', 'Observation deleted', 'info');
+    showToast('Deleted', 'Observation removed', 'info');
   };
 
   const addMediaItem = (item: Omit<MediaItem, 'id' | 'timestamp'>): MediaItem => {
@@ -429,7 +596,13 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     showToast('Problem Resolved', 'Field issue marked as resolved', 'success');
   };
 
-  const addTask = (title: string, fieldId: string, dueDate: string, notes?: string, voiceCreated = false) => {
+  const addTask = (
+    title: string,
+    fieldId: string | null,
+    dueDate: string,
+    notes?: string,
+    voiceCreated = false
+  ) => {
     const newTask: FarmTask = {
       id: 'task-' + Date.now(),
       title,
@@ -461,10 +634,10 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const deleteTask = (id: string) => {
     setTasks(prev => prev.filter(t => t.id !== id));
-    showToast('Task Removed', 'Task deleted from schedule', 'info');
+    showToast('Task Removed', 'Task deleted', 'info');
   };
 
-  const addReminder = (title: string, timeStr: string, fieldId: string) => {
+  const addReminder = (title: string, timeStr: string, fieldId: string | null) => {
     const newRem: FarmReminder = {
       id: 'rem-' + Date.now(),
       title,
@@ -480,24 +653,6 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const dismissReminder = (id: string) => {
     setReminders(prev => prev.filter(r => r.id !== id));
-  };
-
-  const getFieldWeather = (fieldId: string): FieldWeather => {
-    if (weatherData[fieldId]) return weatherData[fieldId];
-    return weatherData['field-mango-01'] || {
-      fieldId,
-      fieldName: 'Selected Field',
-      temperature: 28,
-      feelsLike: 29,
-      condition: 'Partly Cloudy',
-      conditionIcon: 'cloud-sun',
-      humidity: 60,
-      windKmh: 10,
-      rainProbability: 25,
-      rainfallMm: 0,
-      sprayAdvisory: { status: 'Optimal', reason: 'Ideal weather conditions' },
-      forecast: []
-    };
   };
 
   const toggleDeviceConnection = () => {
@@ -552,32 +707,37 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     setChatMessages(prev => [...prev, userMsg]);
 
-    // Generate intelligent farm-contextual response
     setTimeout(() => {
       let reply = '';
       const lower = userText.toLowerCase();
 
+      // Respect field isolation in chat answers
       if (lower.includes('task') || lower.includes('to do')) {
-        const pending = tasks.filter(t => t.status === 'Pending');
-        reply = `You currently have ${pending.length} pending tasks for today: ${pending.map(t => t.title).join(', ')}.`;
+        const fieldTasks = currentField
+          ? tasks.filter(t => t.fieldId === currentField.id && t.status === 'Pending')
+          : tasks.filter(t => t.status === 'Pending');
+        reply = fieldTasks.length > 0
+          ? `You have ${fieldTasks.length} pending task(s)${currentField ? ` in ${currentField.name}` : ''}: ${fieldTasks.map(t => t.title).join(', ')}.`
+          : `You have no pending tasks${currentField ? ` in ${currentField.name}` : ''}.`;
       } else if (lower.includes('yesterday') || lower.includes('last record')) {
-        const yesterdayObs = observations.find(o => o.timestamp.includes('Yesterday')) || observations[0];
-        reply = `Yesterday at ${yesterdayObs?.timestamp.split('•')[1]?.trim() || '10:32 AM'}, you recorded an observation in ${yesterdayObs?.crop || 'Mango'}: "${yesterdayObs?.title}".`;
+        const fieldObs = currentField
+          ? observations.filter(o => o.fieldId === currentField.id)
+          : observations;
+        const targetObs = fieldObs[0];
+        reply = targetObs
+          ? `In ${targetObs.locationName || 'the field'}, observation recorded: "${targetObs.title}".`
+          : `No observations found for ${currentField ? currentField.name : 'this area'}.`;
       } else if (lower.includes('weather') || lower.includes('rain')) {
-        const currentWeather = currentField ? getFieldWeather(currentField.id) : getFieldWeather('field-mango-01');
-        reply = `In ${currentWeather.fieldName}, it is currently ${currentWeather.temperature}°C, ${currentWeather.condition}. Rain probability is ${currentWeather.rainProbability}% and wind is ${currentWeather.windKmh} km/h. Spray conditions are ${currentWeather.sprayAdvisory.status}.`;
-      } else if (lower.includes('mango') || lower.includes('problem') || lower.includes('yellow')) {
-        reply = `In the Mango Plantation, we have 1 active alert for yellow leaves and suspected Anthracnose (87% confidence). Pruning and Copper Oxychloride spray are recommended before the rain.`;
-      } else if (lower.includes('tomato')) {
-        reply = `The Tomato Field is at 68% health. Early blight was noted on the lower leaves. Trellis repair is scheduled for today.`;
-      } else if (lower.includes('strawberry')) {
-        reply = `The Strawberry Field is in excellent health at 91%, with vigorous crown growth and uniform blossoming. Fertigation is on schedule.`;
+        const w = getFieldWeather(currentField?.id);
+        reply = w && !w.isError
+          ? `In ${w.fieldName}, current weather is ${w.temperature}°C, ${w.condition}. Humidity is ${w.humidity}% with wind at ${w.windKmh} km/h (${w.windDirectionCompass}). Spray conditions are ${w.sprayAdvisory.status}.`
+          : `Weather data is currently unavailable for ${currentField?.name || 'this location'}.`;
       } else if (lower.includes('where am i') || lower.includes('location')) {
         reply = currentField
-          ? `You are currently inside ${currentField.name} at GPS ${currentGps.lat.toFixed(4)}° N, ${currentGps.lng.toFixed(4)}° E.`
-          : `You are outside your registered fields at GPS ${currentGps.lat.toFixed(4)}° N, ${currentGps.lng.toFixed(4)}° E.`;
+          ? `You are inside ${currentField.name} at GPS ${currentGps.lat.toFixed(4)}° N, ${currentGps.lng.toFixed(4)}° E.`
+          : `You are outside registered field boundaries at GPS ${currentGps.lat.toFixed(4)}° N, ${currentGps.lng.toFixed(4)}° E.`;
       } else {
-        reply = `I heard you, Ravi. I am tracking your activity across ${currentFarm.name}. You can ask me about crop observations, weather advisories, tasks, or speak to take a photo.`;
+        reply = `I am monitoring ${currentFarm.name}. You can ask about crop observations, weather advisories, or tasks.`;
       }
 
       const botMsg: AssistantChatMessage = {
@@ -597,8 +757,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setChatMessages(INITIAL_CHAT);
   };
 
-  // ================= DEMO WORKFLOW SIMULATION SUITE =================
-  // 1. Simulate GPS Movement
+  // ================= DEMO WORKFLOW SIMULATORS =================
   const simulateGpsMovement = (target: 'mango' | 'tomato' | 'strawberry' | 'outside') => {
     speechService.playWakeChime();
     let coords: LatLng = { lat: 13.2990, lng: 77.5345 };
@@ -610,119 +769,121 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     handleGpsUpdate(coords);
   };
 
-  // 2. Simulate Photo Capture with Wearable Glasses
   const simulatePhotoCapture = () => {
     speechService.playShutterChime();
     showToast('Photo Captured', 'Dual 12MP glasses camera snapped image', 'info');
 
     setTimeout(() => {
       showToast('Location Detected', `GPS: ${currentGps.lat.toFixed(4)}° N, ${currentGps.lng.toFixed(4)}° E`, 'info');
-    }, 700);
+    }, 600);
 
     setTimeout(() => {
-      const fieldName = currentField ? currentField.name : 'Unknown Location';
-      showToast('Geo-fence Matched', `${fieldName} identified`, 'success');
+      const field = currentField;
+      const fieldName = field ? field.name : 'No registered field';
       
-      const newMedia = addMediaItem({
+      addMediaItem({
         farmId: currentFarm.id,
-        fieldId: currentField ? currentField.id : 'unassigned',
-        crop: currentField ? currentField.crop : 'Unassigned',
+        fieldId: field ? field.id : null,
+        crop: field ? field.crop : 'Unassigned',
         type: 'photo',
         url: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=1000&auto=format&fit=crop&q=80',
         thumbnailUrl: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&auto=format&fit=crop&q=80',
-        caption: `Wearable camera capture in ${fieldName}`,
+        caption: `Capture in ${fieldName}`,
         location: currentGps,
         aiAnalyzed: false
       });
 
-      addActivityLog('Photo captured', `Saved to ${fieldName} media album`, fieldName, 'photo');
-      showToast('Photo Saved', `Stored in ${fieldName} media library`, 'success');
-    }, 1400);
+      if (field) {
+        showToast('Geo-fence Matched', `${field.name} identified`, 'success');
+        addActivityLog('Photo captured', `Saved to ${field.name}`, field.name, 'photo');
+      } else {
+        showToast('Unregistered Location', 'Photo saved without registered field association', 'warning');
+      }
+    }, 1200);
   };
 
-  // 3. Simulate Voice Observation
   const simulateVoiceObservation = () => {
     speechService.playWakeChime();
     showToast('Wake Word Detected', '“Hey Vision, the mango leaves are turning yellow”', 'info');
 
     setTimeout(() => {
-      const fieldName = currentField ? currentField.name : 'Mango Plantation';
-      const obs = addObservation({
+      const targetField = currentField || currentFarm.fields.find(f => f.id === 'field-mango-01') || null;
+      addObservation({
         title: 'Yellow leaves observed on lower canopy',
-        notes: 'Farmer voice logged: Leaves turning yellow and chlorotic.',
-        fieldId: currentField ? currentField.id : 'field-mango-01',
+        notes: 'Farmer voice logged: Leaves turning yellow with chlorosis.',
+        fieldId: targetField ? targetField.id : null,
         source: 'voice',
         voiceTranscript: '“Hey Vision, the mango leaves are turning yellow.”',
         mediaUrl: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=800&auto=format&fit=crop&q=80'
       });
 
-      speechService.speak(`Observation recorded for ${fieldName}. Yellow leaves logged.`);
-    }, 1000);
-  };
-
-  // 4. Simulate Agricultural AI Disease Alert
-  const simulateAiDiseaseAlert = () => {
-    speechService.playWakeChime();
-    showToast('AI Analysis Running', 'Dedicated Crop-Vision CV model analyzing foliage image...', 'info');
-
-    setTimeout(() => {
-      const field = currentFarm.fields[0]; // Mango
-      const newProblem = addProblemReport({
-        fieldId: field.id,
-        farmId: currentFarm.id,
-        crop: field.crop,
-        farmerNote: '“Leaves look unusual with dark necrotic specks.”',
-        imageUrl: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=800&auto=format&fit=crop&q=80',
-        status: 'AI Analyzed',
-        aiAnalysis: {
-          detectedCrop: 'Mango (Mangifera indica)',
-          possibleDisease: 'Anthracnose (Colletotrichum gloeosporioides)',
-          confidence: 87,
-          severity: 'Moderate',
-          recommendedAction: 'Inspect affected branch cluster. Prune affected leaves. Apply Copper Oxychloride (0.3%) before rain.',
-          modelName: 'AgroVision-CropVision v3.2',
-          analyzedAt: 'Just now'
-        }
-      });
-
-      const newNotif: FarmNotification = {
-        id: 'notif-' + Date.now(),
-        type: 'Crop Problem',
-        title: 'High Alert: Anthracnose Detected (87%)',
-        message: 'Computer vision identified fungal lesions on Mango foliage.',
-        timestamp: 'Just now',
-        read: false,
-        fieldId: field.id
-      };
-      setNotifications(prev => [newNotif, ...prev]);
-
-      addActivityLog('AI Disease Alert', 'Anthracnose detected (87% confidence) in Mango Plantation', 'Mango Plantation', 'alert');
-      showToast('AI Diagnosis Ready', 'Anthracnose (87% confidence) identified in Mango Plantation', 'warning');
-      speechService.speak('Alert: AgroVision CropVision model detected Anthracnose with 87% confidence in Mango Plantation. Pruning recommended.');
-    }, 1200);
-  };
-
-  // 5. Simulate Task Creation via Voice
-  const simulateTaskCreation = () => {
-    speechService.playWakeChime();
-    showToast('Voice Command Received', '“Hey Vision, add fertilizer application for mango field tomorrow”', 'info');
-
-    setTimeout(() => {
-      addTask(
-        'Apply NPK (19:19:19) foliar nutrition',
-        'field-mango-01',
-        'Tomorrow',
-        'Voice created via AgroVision glasses: Apply foliar fertilizer in early morning.',
-        true
-      );
-      speechService.speak('Task added: Fertilizer application scheduled for Mango Plantation tomorrow.');
+      speechService.speak(`Observation recorded for ${targetField?.name || 'current location'}.`);
     }, 900);
   };
 
-  // 6. Simulate Morning Briefing
+  const simulateAiDiseaseAlert = () => {
+    speechService.playWakeChime();
+    showToast('AI Analysis Running', 'Crop-Vision CV model analyzing foliage image...', 'info');
+
+    setTimeout(() => {
+      const field = currentField || currentFarm.fields[0];
+      if (field) {
+        addProblemReport({
+          fieldId: field.id,
+          farmId: currentFarm.id,
+          crop: field.crop,
+          farmerNote: '“Leaves look unusual with dark necrotic specks.”',
+          imageUrl: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=800&auto=format&fit=crop&q=80',
+          status: 'AI Analyzed',
+          aiAnalysis: {
+            detectedCrop: field.crop,
+            possibleDisease: 'Anthracnose (Colletotrichum gloeosporioides)',
+            confidence: 87,
+            severity: 'Moderate',
+            recommendedAction: 'Inspect affected branch cluster. Prune affected leaves. Apply Copper Oxychloride (0.3%) before rain.',
+            modelName: 'AgroVision-CropVision v3.2',
+            analyzedAt: 'Just now'
+          }
+        });
+
+        const newNotif: FarmNotification = {
+          id: 'notif-' + Date.now(),
+          type: 'Crop Problem',
+          title: `High Alert: Anthracnose in ${field.name}`,
+          message: 'Computer vision identified fungal lesions on foliage (87% confidence).',
+          timestamp: 'Just now',
+          read: false,
+          fieldId: field.id
+        };
+        setNotifications(prev => [newNotif, ...prev]);
+        showToast('AI Diagnosis Ready', `Anthracnose (87% conf) in ${field.name}`, 'warning');
+        speechService.speak(`Alert: AgroVision CropVision model detected Anthracnose with 87% confidence in ${field.name}.`);
+      }
+    }, 1200);
+  };
+
+  const simulateTaskCreation = () => {
+    speechService.playWakeChime();
+    showToast('Voice Command Received', '“Hey Vision, add fertilizer application tomorrow”', 'info');
+
+    setTimeout(() => {
+      const field = currentField || currentFarm.fields[0] || null;
+      addTask(
+        'Apply foliar fertilizer (19:19:19 NPK)',
+        field ? field.id : null,
+        'Tomorrow',
+        'Voice created via AgroVision glasses: Early morning foliar application.',
+        true
+      );
+      speechService.speak(`Task added for ${field ? field.name : 'farm'}.`);
+    }, 800);
+  };
+
   const simulateMorningBriefing = () => {
     setIsBriefingModalOpen(true);
-    const briefingText = `Good morning Ravi. Mango Plantation is currently being monitored. Current weather is 28 degrees Celsius, partly cloudy with 30 percent chance of rain. You have three tasks today, including checking irrigation lines and inspecting mango leaves. One observation of yellow leaves was reported yesterday and requires attention.`;
+    const field = currentField || currentFarm.fields[0];
+    const w = getFieldWeather(field?.id);
+    const briefingText = `Good morning Ravi. ${field ? field.name : currentFarm.name} is currently being monitored. Current weather is ${w?.temperature ?? 28} degrees Celsius, ${w?.condition ?? 'partly cloudy'}.`;
     speechService.speak(briefingText);
     showToast('Morning Briefing', 'Audio briefing initiated for Ravi Kumar', 'success');
   };
@@ -743,24 +904,33 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         updateFarm,
         addField,
         updateFieldBoundary,
+        deleteField,
+        locateMe,
         observations,
+        getFieldObservations,
         addObservation,
         resolveObservation,
         deleteObservation,
         mediaItems,
+        getFieldMedia,
         addMediaItem,
         problems,
+        getFieldProblems,
         addProblemReport,
         resolveProblem,
         tasks,
+        getFieldTasks,
         addTask,
         toggleTaskStatus,
         deleteTask,
         reminders,
+        getFieldReminders,
         addReminder,
         dismissReminder,
         weatherData,
         getFieldWeather,
+        refreshCurrentWeather,
+        isWeatherLoading,
         device,
         toggleDeviceConnection,
         syncDevice,
