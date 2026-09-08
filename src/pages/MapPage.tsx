@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { LatLng, Field } from '../types/agro';
-import { calculatePolygonAreaAcres } from '../services/geofence';
+import { calculatePolygonAreaAcres, findContainingField } from '../services/geofence';
 import {
   MapLandmark,
   searchPlacesAndLandmarks,
@@ -56,6 +56,24 @@ export const MapPage: React.FC = () => {
   const vertexMarkersGroupRef = useRef<L.LayerGroup | null>(null);
   const activeDrawPolygonRef = useRef<L.Polygon | null>(null);
   const landmarkMarkerRef = useRef<L.Marker | null>(null);
+  const accuracyCircleRef = useRef<L.Circle | null>(null);
+  const watchIdRef = useRef<number | null>(null);
+
+  // Real-device GPS States
+  const [isLocatingDevice, setIsLocatingDevice] = useState<boolean>(false);
+  const [isLiveTracking, setIsLiveTracking] = useState<boolean>(false);
+  const [deviceGpsInfo, setDeviceGpsInfo] = useState<{
+    lat: number;
+    lng: number;
+    accuracy: number;
+    altitude?: number | null;
+    speed?: number | null;
+    heading?: number | null;
+    timestamp: number;
+    address?: string;
+    containingFieldName?: string | null;
+  } | null>(null);
+  const [gpsErrorMessage, setGpsErrorMessage] = useState<string | null>(null);
 
   // Landmark & Geocoding Search States
   const [searchQuery, setSearchQuery] = useState('');
@@ -154,6 +172,14 @@ export const MapPage: React.FC = () => {
     mapInstanceRef.current = map;
 
     return () => {
+      if (watchIdRef.current !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+      if (accuracyCircleRef.current) {
+        accuracyCircleRef.current.remove();
+        accuracyCircleRef.current = null;
+      }
       map.remove();
       mapInstanceRef.current = null;
     };
@@ -482,6 +508,213 @@ export const MapPage: React.FC = () => {
   const handleSetGpsAtLandmark = (landmark: MapLandmark) => {
     setCurrentGps({ lat: landmark.lat, lng: landmark.lng });
     showToast('GPS Telemetry Updated', `Farmer location set to ${landmark.name} (${landmark.lat.toFixed(5)}, ${landmark.lng.toFixed(5)})`, 'info');
+  };
+
+  // Real Hardware/Device GPS Location Detection with Leaflet Auto-Centering
+  const handleLocateDevice = useCallback(() => {
+    if (!navigator.geolocation) {
+      showToast('GPS Unsupported', 'Geolocation hardware is not supported by your browser.', 'error');
+      setGpsErrorMessage('Your browser does not support GPS location.');
+      return;
+    }
+
+    setIsLocatingDevice(true);
+    setGpsErrorMessage(null);
+    showToast('Acquiring GPS Position...', 'Connecting to device hardware sensors...', 'info');
+
+    const onLocationSuccess = async (pos: GeolocationPosition) => {
+      setIsLocatingDevice(false);
+      const { latitude, longitude, accuracy, altitude, speed, heading } = pos.coords;
+
+      const coords: LatLng = { lat: latitude, lng: longitude };
+      setCurrentGps(coords);
+
+      // Check if inside any existing field
+      const containingField = findContainingField(coords, currentFarm.fields);
+      if (containingField) {
+        selectField(containingField.id);
+        setSelectedFieldId(containingField.id);
+      }
+
+      // Smoothly fly Leaflet map to device coordinates
+      const map = mapInstanceRef.current;
+      if (map) {
+        map.flyTo([latitude, longitude], 18, {
+          duration: 1.4,
+          easeLinearity: 0.25
+        });
+
+        // Update or draw accuracy circle
+        if (accuracyCircleRef.current) {
+          accuracyCircleRef.current.remove();
+        }
+        const circle = L.circle([latitude, longitude], {
+          radius: Math.max(accuracy, 8),
+          color: '#059669', // emerald-600
+          weight: 1.5,
+          fillColor: '#10B981',
+          fillOpacity: 0.16,
+          dashArray: '4, 4'
+        }).addTo(map);
+
+        circle.bindTooltip(`Device GPS Accuracy: ±${Math.round(accuracy)}m`, {
+          permanent: false,
+          direction: 'top'
+        });
+
+        accuracyCircleRef.current = circle;
+      }
+
+      const info = {
+        lat: latitude,
+        lng: longitude,
+        accuracy: Math.round(accuracy),
+        altitude: altitude ? Math.round(altitude) : null,
+        speed: speed !== null ? Math.round(speed * 3.6) : null,
+        heading: heading ? Math.round(heading) : null,
+        timestamp: pos.timestamp,
+        containingFieldName: containingField ? containingField.name : null,
+        address: `Locating address (${latitude.toFixed(4)}° N, ${longitude.toFixed(4)}° E)...`
+      };
+      setDeviceGpsInfo(info);
+
+      showToast(
+        'Device Located',
+        `GPS locked (±${Math.round(accuracy)}m accuracy)${containingField ? ` inside ${containingField.name}` : ''}`,
+        'success'
+      );
+
+      // Reverse geocode device position asynchronously
+      try {
+        const geo = await reverseGeocodePoint(latitude, longitude);
+        setDeviceGpsInfo(prev => (prev ? { ...prev, address: geo.address } : null));
+      } catch {
+        setDeviceGpsInfo(prev =>
+          prev ? { ...prev, address: `${latitude.toFixed(5)}° N, ${longitude.toFixed(5)}° E` } : null
+        );
+      }
+    };
+
+    const onLocationError = (err: GeolocationPositionError) => {
+      setIsLocatingDevice(false);
+      let msg = 'Failed to retrieve hardware GPS location.';
+      if (err.code === 1) {
+        msg = 'Location permission denied. Please allow location access in your browser bar.';
+      } else if (err.code === 2) {
+        msg = 'Position unavailable. Check your device GPS/WiFi positioning settings.';
+      } else if (err.code === 3) {
+        msg = 'GPS request timed out. Retrying with network location fallback...';
+        navigator.geolocation.getCurrentPosition(
+          onLocationSuccess,
+          () => {
+            setIsLocatingDevice(false);
+            setGpsErrorMessage('GPS request timed out. Please check your signal and permissions.');
+            showToast('GPS Timeout', 'Could not lock GPS position. Try again in an open area.', 'error');
+          },
+          { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 }
+        );
+        return;
+      }
+      setGpsErrorMessage(msg);
+      showToast('GPS Error', msg, 'error');
+    };
+
+    navigator.geolocation.getCurrentPosition(onLocationSuccess, onLocationError, {
+      enableHighAccuracy: true,
+      timeout: 12000,
+      maximumAge: 0
+    });
+  }, [currentFarm.fields, selectField, setCurrentGps, showToast]);
+
+  // Live Walk Tracking Mode (auto-follows farmer as they walk perimeter)
+  const handleToggleLiveTracking = useCallback(() => {
+    if (isLiveTracking) {
+      if (watchIdRef.current !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+      setIsLiveTracking(false);
+      showToast('Live Tracking Paused', 'Real-time GPS following disabled.', 'info');
+    } else {
+      if (!navigator.geolocation) {
+        showToast('GPS Unsupported', 'Browser does not support geolocation.', 'error');
+        return;
+      }
+
+      setIsLiveTracking(true);
+      showToast('Live Walk GPS Active', 'Following device location in real time as you walk...', 'success');
+
+      // Center immediately on start
+      handleLocateDevice();
+
+      const id = navigator.geolocation.watchPosition(
+        pos => {
+          const { latitude, longitude, accuracy } = pos.coords;
+          const coords = { lat: latitude, lng: longitude };
+          setCurrentGps(coords);
+
+          const map = mapInstanceRef.current;
+          if (map) {
+            map.panTo([latitude, longitude], { animate: true, duration: 0.8 });
+            if (accuracyCircleRef.current) {
+              accuracyCircleRef.current.setLatLng([latitude, longitude]);
+              accuracyCircleRef.current.setRadius(Math.max(accuracy, 8));
+            }
+          }
+
+          setDeviceGpsInfo(prev =>
+            prev
+              ? {
+                  ...prev,
+                  lat: latitude,
+                  lng: longitude,
+                  accuracy: Math.round(accuracy),
+                  timestamp: pos.timestamp
+                }
+              : null
+          );
+        },
+        () => {
+          setIsLiveTracking(false);
+          showToast('Tracking Lost', 'Lost GPS hardware connection.', 'warning');
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 3000,
+          timeout: 15000
+        }
+      );
+      watchIdRef.current = id;
+    }
+  }, [isLiveTracking, handleLocateDevice, setCurrentGps, showToast]);
+
+  // Start creating parcel around current physical device location
+  const handleStartFieldAtDevice = (info: { lat: number; lng: number }) => {
+    const center: LatLng = { lat: info.lat, lng: info.lng };
+    const delta = 0.0006;
+    const defaultBoundary: LatLng[] = [
+      { lat: center.lat + delta, lng: center.lng - delta },
+      { lat: center.lat + delta, lng: center.lng + delta },
+      { lat: center.lat - delta, lng: center.lng + delta },
+      { lat: center.lat - delta, lng: center.lng - delta }
+    ];
+
+    const created = addField(currentFarm.id, {
+      name: 'My New Plot',
+      crop: 'Mango',
+      areaAcres: 1.0,
+      plantingDate: new Date().toISOString().split('T')[0],
+      healthPercentage: 90,
+      healthBreakdown: { healthy: 90, atRisk: 10, critical: 0 },
+      status: 'Healthy',
+      center,
+      boundary: defaultBoundary
+    });
+
+    setSelectedFieldId(created.id);
+    selectField(created.id);
+    handleStartEdit(created);
+    showToast('Field Created at GPS', `New parcel centered at your device. Adjust perimeter handles to fit boundary.`, 'success');
   };
 
   // Debounced search for places, landmarks, fields, and coordinates
@@ -813,14 +1046,27 @@ export const MapPage: React.FC = () => {
             </button>
           </div>
 
-          {/* Locate Me */}
+          {/* Real-device GPS Locate Button */}
           <button
-            onClick={locateMe}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 shadow-xs transition-colors"
-            title="Snap to farmer GPS location"
+            onClick={() => handleLocateDevice()}
+            disabled={isLocatingDevice}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold border shadow-xs transition-all ${
+              isLocatingDevice
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 ring-2 ring-emerald-400'
+                : deviceGpsInfo
+                ? 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700 shadow-sm'
+                : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
+            }`}
+            title="Auto-detect current device location using real GPS"
           >
-            <Navigation className="w-3.5 h-3.5 text-forest-700" />
-            <span className="hidden md:inline">Locate Me</span>
+            {isLocatingDevice ? (
+              <Loader2 className="w-3.5 h-3.5 text-emerald-700 animate-spin" />
+            ) : (
+              <Crosshair className={`w-3.5 h-3.5 ${deviceGpsInfo ? 'text-white' : 'text-emerald-700'}`} />
+            )}
+            <span className="hidden md:inline">
+              {isLocatingDevice ? 'Locating...' : deviceGpsInfo ? 'Device GPS' : 'Find My Location'}
+            </span>
           </button>
         </div>
       </div>
@@ -875,6 +1121,23 @@ export const MapPage: React.FC = () => {
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add Point</span>
+              </button>
+
+              {/* Add Vertex at Current Physical Device GPS */}
+              <button
+                onClick={() => {
+                  if (deviceGpsInfo) {
+                    pushHistory([...activePoints, { lat: deviceGpsInfo.lat, lng: deviceGpsInfo.lng }]);
+                    showToast('Corner Added', `Added vertex at current GPS coordinates.`, 'success');
+                  } else {
+                    handleLocateDevice();
+                  }
+                }}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 active:bg-emerald-800 text-white font-bold text-xs shadow-xs transition-colors"
+                title="Stamp vertex at current physical device GPS location"
+              >
+                <Crosshair className="w-3.5 h-3.5 text-emerald-200" />
+                <span className="hidden sm:inline">Add GPS Point</span>
               </button>
 
               {/* Delete Point (When a vertex is clicked) */}
@@ -1219,6 +1482,169 @@ export const MapPage: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* FLOATING DEVICE LOCATION INSPECTOR CARD (When Device GPS is locked & in View Mode) */}
+        {deviceGpsInfo && editorMode === 'view' && !activeLandmark && (
+          <div className="absolute top-16 right-3 z-25 max-w-xs sm:max-w-sm w-[92%] pointer-events-auto animate-in fade-in slide-in-from-top-2 duration-150">
+            <div className="bg-white/95 backdrop-blur-md rounded-2xl border border-emerald-300 shadow-2xl p-3.5 space-y-2.5">
+              <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                    <Crosshair className="w-4 h-4 text-emerald-700" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-200">
+                        Device GPS Locked
+                      </span>
+                      <span className="text-[10px] text-emerald-700 font-semibold">
+                        ±{deviceGpsInfo.accuracy}m
+                      </span>
+                    </div>
+                    <h4 className="font-extrabold text-slate-900 text-xs truncate mt-0.5">
+                      {deviceGpsInfo.containingFieldName
+                        ? `Inside ${deviceGpsInfo.containingFieldName}`
+                        : 'Current Physical Location'}
+                    </h4>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setDeviceGpsInfo(null)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 shrink-0"
+                  title="Dismiss location card"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                {deviceGpsInfo.address || 'Locating address...'}
+              </p>
+
+              {/* Coordinates Box */}
+              <div className="p-2 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs font-mono">
+                <div>
+                  <span className="text-[10px] text-slate-400 block font-sans">Hardware Coordinates:</span>
+                  <span className="font-bold text-slate-800">
+                    {deviceGpsInfo.lat.toFixed(6)}° N, {deviceGpsInfo.lng.toFixed(6)}° E
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleCopyCoords(deviceGpsInfo.lat, deviceGpsInfo.lng)}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white hover:bg-slate-100 border border-slate-200 text-[11px] font-sans font-semibold text-slate-700 transition-colors shadow-2xs"
+                  title="Copy coordinates"
+                >
+                  {hasCopiedCoords ? (
+                    <>
+                      <CheckCheck className="w-3.5 h-3.5 text-emerald-600" />
+                      <span className="text-emerald-700">Copied</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Copy</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Actions */}
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => handleStartFieldAtDevice(deviceGpsInfo)}
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold shadow-xs transition-colors"
+                  title="Create a new parcel starting at your physical location"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Map Field Here</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (mapInstanceRef.current) {
+                      mapInstanceRef.current.flyTo([deviceGpsInfo.lat, deviceGpsInfo.lng], 18, {
+                        duration: 1.2
+                      });
+                    }
+                  }}
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold shadow-2xs transition-colors"
+                  title="Re-center map on device position"
+                >
+                  <Navigation className="w-3.5 h-3.5 text-forest-700" />
+                  <span>Re-Center</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* GPS ERROR TOAST / BANNER */}
+        {gpsErrorMessage && (
+          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-35 max-w-md w-[90%] pointer-events-auto animate-in fade-in slide-in-from-top-2">
+            <div className="bg-rose-50 border border-rose-200 text-rose-900 px-3.5 py-2 rounded-2xl shadow-xl flex items-center justify-between gap-2 text-xs">
+              <span className="font-semibold">{gpsErrorMessage}</span>
+              <button
+                onClick={() => setGpsErrorMessage(null)}
+                className="p-1 rounded-lg text-rose-500 hover:text-rose-800 hover:bg-rose-100 shrink-0"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* FLOATING CANVAS LOCATION ACTION BUTTON (Bottom Right - Above Quick Focus) */}
+        <div className="absolute bottom-20 right-3.5 z-30 flex flex-col items-end gap-2.5 pointer-events-auto">
+          {/* Live Walking Tracking Indicator */}
+          {isLiveTracking && (
+            <div className="bg-slate-900/90 text-emerald-400 text-[11px] font-bold px-3 py-1 rounded-full border border-emerald-500/50 shadow-xl flex items-center gap-2 backdrop-blur-md animate-pulse">
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              <span>Live Walk GPS Active</span>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2">
+            {/* Live Walk Follow Toggle */}
+            <button
+              onClick={handleToggleLiveTracking}
+              className={`h-11 px-3 rounded-2xl backdrop-blur-md shadow-xl border text-xs font-extrabold flex items-center gap-1.5 transition-all active:scale-95 ${
+                isLiveTracking
+                  ? 'bg-emerald-600 text-white border-emerald-500 shadow-emerald-600/30'
+                  : 'bg-white/95 text-slate-700 hover:text-emerald-700 border-slate-200/90 hover:bg-slate-50'
+              }`}
+              title={isLiveTracking ? 'Pause live walk GPS following' : 'Auto-follow my physical device movement as I walk the farm'}
+            >
+              <Navigation className={`w-4 h-4 ${isLiveTracking ? 'text-white' : 'text-slate-500'}`} />
+              <span className="hidden sm:inline">{isLiveTracking ? 'Tracking Live' : 'Walk Follow'}</span>
+            </button>
+
+            {/* Dedicated Primary Device GPS Locate Button */}
+            <button
+              onClick={() => handleLocateDevice()}
+              disabled={isLocatingDevice}
+              className={`w-12 h-12 rounded-2xl backdrop-blur-md shadow-2xl border transition-all flex items-center justify-center group active:scale-95 ${
+                isLocatingDevice
+                  ? 'bg-emerald-50 border-emerald-400 ring-4 ring-emerald-300/40 text-emerald-700'
+                  : deviceGpsInfo
+                  ? 'bg-emerald-600 text-white border-emerald-500 shadow-emerald-600/30 hover:bg-emerald-700'
+                  : 'bg-white/95 hover:bg-white text-slate-700 hover:text-emerald-700 border-slate-200/90 hover:shadow-2xl'
+              }`}
+              title="Find Current Device Location (Auto-center Leaflet GPS on My Device)"
+            >
+              {isLocatingDevice ? (
+                <Loader2 className="w-5 h-5 text-emerald-600 animate-spin" />
+              ) : (
+                <Crosshair
+                  className={`w-5 h-5 transition-transform group-hover:scale-110 ${
+                    deviceGpsInfo ? 'text-white' : 'text-emerald-700'
+                  }`}
+                />
+              )}
+            </button>
+          </div>
+        </div>
 
         {/* FLOATING BOTTOM BAR: Quick Field Selector Pills */}
         <div className="absolute bottom-3 left-3 right-14 z-20 pointer-events-auto">
