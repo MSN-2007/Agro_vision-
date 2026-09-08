@@ -1,0 +1,1014 @@
+{
+  "users": [
+    {
+      "id": "user-ravi-01",
+      "name": "Ravi Kumar",
+      "email": "ravi.kumar@agrovision.io",
+      "phone": "+91 98450 12890",
+      "preferredLanguage": "en",
+      "defaultFarmId": "farm-gv-01",
+      "avatarUrl": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    }
+  ],
+  "farms": [
+    {
+      "id": "farm-gv-01",
+      "userId": "user-ravi-01",
+      "name": "Green Valley Farm",
+      "locationName": "Doddaballapur Taluk, Bengaluru Rural",
+      "center": {
+        "lat": 13.2985,
+        "lng": 77.535
+      },
+      "totalAreaAcres": 8.5,
+      "createdAt": "2024-03-15T00:00:00Z",
+      "updatedAt": "2024-03-15T00:00:00Z",
+      "source": "website"
+    }
+  ],
+  "fields": [
+    {
+      "id": "field-mango-01",
+      "userId": "user-ravi-01",
+      "farmId": "farm-gv-01",
+      "name": "Mango Plantation",
+      "crop": "Mango (Alphonso & Kesar)",
+      "cropName": "Mango",
+      "areaAcres": 5,
+      "plantingDate": "2026-06-01",
+      "healthPercentage": 82,
+      "healthBreakdown": {
+        "healthy": 82,
+        "atRisk": 12,
+        "critical": 6
+      },
+      "status": "Healthy",
+      "center": {
+        "lat": 13.299,
+        "lng": 77.5345
+      },
+      "boundary": [
+        {
+          "lat": 13.3002,
+          "lng": 77.5332
+        },
+        {
+          "lat": 13.3005,
+          "lng": 77.536
+        },
+        {
+          "lat": 13.2978,
+          "lng": 77.5365
+        },
+        {
+          "lat": 13.2974,
+          "lng": 77.533
+        }
+      ],
+      "notes": "High-density plantation. Drip irrigated. Pruning completed in May.",
+      "createdAt": "2024-03-15T00:00:00Z",
+      "updatedAt": "2024-03-15T00:00:00Z",
+      "source": "website"
+    },
+    {
+      "id": "field-tomato-02",
+      "userId": "user-ravi-01",
+      "farmId": "farm-gv-01",
+      "name": "Tomato Field",
+      "crop": "Tomato (Arka Rakshak)",
+      "cropName": "Tomato",
+      "areaAcres": 2,
+      "plantingDate": "2026-07-10",
+      "healthPercentage": 68,
+      "healthBreakdown": {
+        "healthy": 68,
+        "atRisk": 22,
+        "critical": 10
+      },
+      "status": "At Risk",
+      "center": {
+        "lat": 13.2965,
+        "lng": 77.5352
+      },
+      "boundary": [
+        {
+          "lat": 13.2972,
+          "lng": 77.5335
+        },
+        {
+          "lat": 13.2974,
+          "lng": 77.5365
+        },
+        {
+          "lat": 13.2952,
+          "lng": 77.5368
+        },
+        {
+          "lat": 13.295,
+          "lng": 77.5338
+        }
+      ],
+      "notes": "High-tunnel polyhouse. Hydro-fertigation channel 4.",
+      "createdAt": "2024-03-15T00:00:00Z",
+      "updatedAt": "2024-03-15T00:00:00Z",
+      "source": "website"
+    },
+    {
+      "id": "field-strawberry-03",
+      "userId": "user-ravi-01",
+      "farmId": "farm-gv-01",
+      "name": "Organic Strawberry Parcel",
+      "crop": "Strawberry (Winter Dawn)",
+      "cropName": "Strawberry",
+      "areaAcres": 1.5,
+      "plantingDate": "2026-08-01",
+      "healthPercentage": 94,
+      "healthBreakdown": {
+        "healthy": 94,
+        "atRisk": 4,
+        "critical": 2
+      },
+      "status": "Healthy",
+      "center": {
+        "lat": 13.2975,
+        "lng": 77.5385
+      },
+      "boundary": [
+        {
+          "lat": 13.2985,
+          "lng": 77.5372
+        },
+        {
+          "lat": 13.2987,
+          "lng": 77.5398
+        },
+        {
+          "lat": 13.2964,
+          "lng": 77.5401
+        },
+        {
+          "lat": 13.2962,
+          "lng": 77.5375
+        }
+      ],
+      "notes": "Raised beds with black plastic mulch. Beehive nearby.",
+      "createdAt": "2024-03-15T00:00:00Z",
+      "updatedAt": "2024-03-15T00:00:00Z",
+      "source": "website"
+    }
+  ],
+  "crops": [
+    {
+      "id": "crop-mango-01",
+      "fieldId": "field-mango-01",
+      "name": "Mango",
+      "variety": "Alphonso & Kesar",
+      "plantingDate": "2026-06-01",
+      "createdAt": "2024-03-15T00:00:00Z",
+      "updatedAt": "2024-03-15T00:00:00Z"
+    },
+    {
+      "id": "crop-tomato-02",
+      "fieldId": "field-tomato-02",
+      "name": "Tomato",
+      "variety": "Arka Rakshak",
+      "plantingDate": "2026-07-10",
+      "createdAt": "2024-03-15T00:00:00Z",
+      "updatedAt": "2024-03-15T00:00:00Z"
+    },
+    {
+      "id": "crop-strawberry-03",
+      "fieldId": "field-strawberry-03",
+      "name": "Strawberry",
+      "variety": "Winter Dawn",
+      "plantingDate": "2026-08-01",
+      "createdAt": "2024-03-15T00:00:00Z",
+      "updatedAt": "2024-03-15T00:00:00Z"
+    }
+  ],
+  "observations": [
+    {
+      "userId": "user-ravi-01",
+      "farmId": "farm-gv-01",
+      "fieldId": "field-mango-01",
+      "cropId": null,
+      "crop": "Mango (Alphonso & Kesar)",
+      "title": "the leaves in northern sector are showing mild yellowing",
+      "notes": "the leaves in northern sector are showing mild yellowing",
+      "content": "the leaves in northern sector are showing mild yellowing",
+      "latitude": 13.299,
+      "longitude": 77.5345,
+      "timestamp": "2026-09-08T03:05:41.920Z",
+      "source": "raspberry_pi",
+      "deviceId": "AGRO_PI_001",
+      "status": "Needs Attention",
+      "id": "obse-1788836741920-ti7rs",
+      "createdAt": "2026-09-08T03:05:41.920Z",
+      "updatedAt": "2026-09-08T03:05:41.920Z"
+    },
+    {
+      "userId": "user-ravi-01",
+      "farmId": "farm-gv-01",
+      "fieldId": "field-mango-01",
+      "cropId": null,
+      "crop": "Mango (Alphonso & Kesar)",
+      "title": "checking mango blooms for powdery mildew",
+      "notes": "checking mango blooms for powdery mildew",
+      "content": "checking mango blooms for powdery mildew",
+      "latitude": 13.299,
+      "longitude": 77.5345,
+      "timestamp": "2026-09-08T03:03:45.039Z",
+      "source": "raspberry_pi",
+      "deviceId": "AGRO_PI_001",
+      "status": "Needs Attention",
+      "id": "obse-1788836625039-8hcg5",
+      "createdAt": "2026-09-08T03:03:45.039Z",
+      "updatedAt": "2026-09-08T03:03:45.039Z"
+    },
+    {
+      "userId": "user-ravi-01",
+      "farmId": "farm-gv-01",
+      "fieldId": "field-mango-01",
+      "cropId": null,
+      "crop": "Field Crop",
+      "title": "Inspected drip irrigation lines",
+      "notes": "Inspected drip irrigation lines",
+      "content": "Inspected drip irrigation lines",
+      "latitude": 17.643404,
+      "longitude": 77.798889,
+      "timestamp": "2026-09-08T02:41:51.695Z",
+      "source": "mobile",
+      "status": "Needs Attention",
+      "photoUrl": null,
+      "aiDiagnosis": null,
+      "id": "obse-1788835311728-ajiz2",
+      "createdAt": "2026-09-08T02:41:51.728Z",
+      "updatedAt": "2026-09-08T02:41:51.728Z"
+    },
+    {
+      "userId": "user-ravi-01",
+      "farmId": "farm-gv-01",
+      "fieldId": "field-mango-01",
+      "cropId": null,
+      "crop": "Field Crop",
+      "title": "Yellow leaves detected by Raspberry Pi camera",
+      "notes": "Computer vision detected chlorosis on lower canopy at field sensor position.",
+      "content": "Computer vision detected chlorosis on lower canopy at field sensor position.",
+      "latitude": 13.2985,
+      "longitude": 77.535,
+      "timestamp": "2026-09-07T23:03:35.122Z",
+      "source": "raspberry_pi",
+      "status": "Needs Attention",
+      "photoUrl": null,
+      "aiDiagnosis": null,
+      "id": "obse-1788822215122-eoieb",
+      "createdAt": "2026-09-07T23:03:35.122Z",
+      "updatedAt": "2026-09-07T23:03:35.122Z"
+    },
+    {
+      "id": "obs-01",
+      "userId": "user-ravi-01",
+      "farmId": "farm-gv-01",
+      "fieldId": "field-mango-01",
+      "cropId": "crop-mango-01",
+      "crop": "Mango",
+      "title": "Anthracnose Fungal Lesions on Leaves",
+      "notes": "Spotted irregular black spots with yellow halo on south canopy tier.",
+      "content": "Anthracnose Fungal Lesions on Leaves. Spotted irregular black spots with yellow halo on south canopy tier.",
+      "latitude": 13.2992,
+      "longitude": 77.5348,
+      "timestamp": "2026-09-06T22:53:38.045Z",
+      "source": "raspberry_pi",
+      "status": "Needs Attention",
+      "photoUrl": "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=800&auto=format&fit=crop&q=80",
+      "aiDiagnosis": {
+        "diseaseName": "Anthracnose (Colletotrichum gloeosporioides)",
+        "confidencePercentage": 91,
+        "recommendedAction": "Apply Copper Oxychloride 50 WP (3g/L) spray in early morning.",
+        "urgency": "Medium"
+      },
+      "createdAt": "2026-09-06T22:53:38.047Z",
+      "updatedAt": "2026-09-06T22:53:38.047Z"
+    },
+    {
+      "id": "obs-02",
+      "userId": "user-ravi-01",
+      "farmId": "farm-gv-01",
+      "fieldId": "field-tomato-02",
+      "cropId": "crop-tomato-02",
+      "crop": "Tomato",
+      "title": "Early Tomato Leaf Blight Symptoms",
+      "notes": "Concentric ring lesions observed on lower leaves of row 4.",
+      "content": "Early Tomato Leaf Blight Symptoms. Concentric ring lesions observed on lower leaves of row 4.",
+      "latitude": 13.2962,
+      "longitude": 77.5349,
+      "timestamp": "2026-09-05T22:53:38.047Z",
+      "source": "mobile",
+      "status": "Under Investigation",
+      "photoUrl": "https://images.unsplash.com/photo-1592417817098-8f3d6910985b?w=800&auto=format&fit=crop&q=80",
+      "aiDiagnosis": {
+        "diseaseName": "Early Blight (Alternaria solani)",
+        "confidencePercentage": 87,
+        "recommendedAction": "Spray Mancozeb 75 WP (2.5g/L). Avoid overhead irrigation.",
+        "urgency": "High"
+      },
+      "createdAt": "2026-09-05T22:53:38.047Z",
+      "updatedAt": "2026-09-05T22:53:38.047Z"
+    }
+  ],
+  "photos": [
+    {
+      "userId": "user-ravi-01",
+      "farmId": "farm-gv-01",
+      "fieldId": "field-mango-01",
+      "cropId": null,
+      "type": "photo",
+      "url": "/uploads/media_1788837668492_7pmcb.jpg",
+      "thumbnailUrl": "/uploads/media_1788837668492_7pmcb.jpg",
+      "caption": "Unit test field photo",
+      "latitude": null,
+      "longitude": null,
+      "timestamp": "2026-09-08T03:21:08.493810Z",
+      "durationSeconds": null,
+      "source": "raspberry_pi",
+      "id": "phot-1788837668496-hctb5",
+      "createdAt": "2026-09-08T03:21:08.496Z",
+      "updatedAt": "2026-09-08T03:21:08.496Z"
+    },
+    {
+      "userId": "user-ravi-01",
+      "farmId": "farm-gv-01",
+      "fieldId": "field-mango-01",
+      "cropId": null,
+      "type": "photo",
+      "url": "/uploads/media_1788837458766_tp34e.jpg",
+      "thumbnailUrl": "/uploads/media_1788837458766_tp34e.jpg",
+      "caption": "Field camera capture",
+      "latitude": null,
+      "longitude": null,
+      "timestamp": "2026-09-08T03:17:38.770356Z",
+      "durationSeconds": null,
+      "source": "raspberry_pi",
+      "id": "phot-1788837458775-pggf5",
+      "createdAt": "2026-09-08T03:17:38.775Z",
+      "updatedAt": "2026-09-08T03:17:38.775Z"
+    },
+    {
+      "userId": "user-ravi-01",
+      "farmId": "farm-gv-01",
+      "fieldId": "field-mango-01",
+      "cropId": null,
+      "type": "photo",
+      "url": "/uploads/media_1788837430056_o4r50.jpg",
+      "thumbnailUrl": "/uploads/media_1788837430056_o4r50.jpg",
+      "caption": "Field camera capture",
+      "latitude": 13.2985,
+      "longitude": 77.535,
+      "timestamp": "2026-09-08T03:17:10.065295Z",
+      "durationSeconds": null,
+      "source": "raspberry_pi",
+      "id": "phot-1788837430067-83nss",
+      "createdAt": "2026-09-08T03:17:10.067Z",
+      "updatedAt": "2026-09-08T03:17:10.067Z"
+    },
+    {
+      "userId": "user-ravi-01",
+      "farmId": "farm-gv-01",
+      "fieldId": "field-mango-01",
+      "cropId": null,
+      "type": "photo",
+      "url": "/uploads/media_1788837418995_p6rnq.jpg",
+      "thumbnailUrl": "/uploads/media_1788837418995_p6rnq.jpg",
+      "caption": "Camera diagnostic test photo",
+      "latitude": 13.2985,
+      "longitude": 77.535,
+      "timestamp": "2026-09-08T03:16:59.003Z",
+      "durationSeconds": null,
+      "source": "raspberry_pi",
+      "id": "phot-1788837419003-o85mk",
+      "createdAt": "2026-09-08T03:16:59.003Z",
+      "updatedAt": "2026-09-08T03:16:59.003Z"
+    },
+    {
+      "id": "photo-01",
+      "userId": "user-ravi-01",
+      "farmId": "farm-gv-01",
+      "fieldId": "field-mango-01",
+      "cropId": "crop-mango-01",
+      "type": "photo",
+      "url": "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=1000&auto=format&fit=crop&q=80",
+      "thumbnailUrl": "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&auto=format&fit=crop&q=80",
+      "caption": "Suspected fungal discoloration on mango foliage",
+      "latitude": 13.2992,
+      "longitude": 77.5348,
+      "timestamp": "2026-09-06T22:53:38.047Z",
+      "source": "raspberry_pi",
+      "createdAt": "2026-09-06T22:53:38.048Z",
+      "updatedAt": "2026-09-06T22:53:38.048Z"
+    },
+    {
+      "id": "photo-02",
+      "userId": "user-ravi-01",
+      "farmId": "farm-gv-01",
+      "fieldId": "field-tomato-02",
+      "cropId": "crop-tomato-02",
+      "type": "photo",
+      "url": "https://images.unsplash.com/photo-1592417817098-8f3d6910985b?w=1000&auto=format&fit=crop&q=80",
+      "thumbnailUrl": "https://images.unsplash.com/photo-1592417817098-8f3d6910985b?w=400&auto=format&fit=crop&q=80",
+      "caption": "Tomato vine inspected during morning walkthrough",
+      "latitude": 13.2962,
+      "longitude": 77.5349,
+      "timestamp": "2026-09-05T22:53:38.048Z",
+      "source": "mobile",
+      "createdAt": "2026-09-05T22:53:38.048Z",
+      "updatedAt": "2026-09-05T22:53:38.048Z"
+    }
+  ],
+  "videos": [
+    {
+      "userId": "user-ravi-01",
+      "farmId": "farm-gv-01",
+      "fieldId": "field-mango-01",
+      "cropId": null,
+      "type": "video",
+      "url": "/uploads/media_1788837668549_9blgr.mp4",
+      "thumbnailUrl": "/uploads/media_1788837668549_9blgr.mp4",
+      "caption": "Field video capture (1s)",
+      "latitude": null,
+      "longitude": null,
+      "timestamp": "2026-09-08T03:21:08.552005Z",
+      "durationSeconds": 1,
+      "source": "raspberry_pi",
+      "id": "vide-1788837668555-oy6f7",
+      "createdAt": "2026-09-08T03:21:08.555Z",
+      "updatedAt": "2026-09-08T03:21:08.555Z"
+    },
+    {
+      "userId": "user-ravi-01",
+      "farmId": "farm-gv-01",
+      "fieldId": "field-mango-01",
+      "cropId": null,
+      "type": "video",
+      "url": "/uploads/media_1788837571864_rurme.mp4",
+      "thumbnailUrl": "/uploads/media_1788837571864_rurme.mp4",
+      "caption": "Field video capture (3s)",
+      "latitude": null,
+      "longitude": null,
+      "timestamp": "2026-09-08T03:19:31.868945Z",
+      "durationSeconds": 3,
+      "source": "raspberry_pi",
+      "id": "vide-1788837571874-hspwq",
+      "createdAt": "2026-09-08T03:19:31.874Z",
+      "updatedAt": "2026-09-08T03:19:31.874Z"
+    },
+    {
+      "id": "video-01",
+      "userId": "user-ravi-01",
+      "farmId": "farm-gv-01",
+      "fieldId": "field-mango-01",
+      "cropId": "crop-mango-01",
+      "type": "video",
+      "url": "https://images.unsplash.com/photo-1550258987-190a2d41a8ba?w=1000&auto=format&fit=crop&q=80",
+      "thumbnailUrl": "https://images.unsplash.com/photo-1550258987-190a2d41a8ba?w=400&auto=format&fit=crop&q=80",
+      "caption": "AgroVision 15s canopy inspection clip",
+      "durationSeconds": 15,
+      "latitude": 13.2995,
+      "longitude": 77.535,
+      "timestamp": "2026-09-06T22:53:38.048Z",
+      "source": "raspberry_pi",
+      "createdAt": "2026-09-06T22:53:38.048Z",
+      "updatedAt": "2026-09-06T22:53:38.048Z"
+    }
+  ],
+  "tasks": [
+    {
+      "userId": "user-ravi-01",
+      "farmId": "farm-gv-01",
+      "fieldId": "field-mango-01",
+      "title": "Check Raspberry Pi SSE Stream",
+      "description": "",
+      "dueDate": "Today",
+      "status": "Pending",
+      "voiceCreated": false,
+      "source": "mobile",
+      "id": "task-1788836851567-c5adr",
+      "createdAt": "2026-09-08T03:07:31.567Z",
+      "updatedAt": "2026-09-08T03:07:31.567Z"
+    },
+    {
+      "userId": "user-ravi-01",
+      "farmId": "farm-gv-01",
+      "fieldId": "field-mango-01",
+      "title": "Create a task to check irrigation valves tomorrow",
+      "description": "Created via Raspberry Pi physical voice assistant",
+      "dueDate": "Today",
+      "status": "Pending",
+      "voiceCreated": true,
+      "source": "raspberry_pi",
+      "deviceId": "AGRO_PI_001",
+      "id": "task-1788836811335-1ypcn",
+      "createdAt": "2026-09-08T03:06:51.335Z",
+      "updatedAt": "2026-09-08T03:06:51.335Z"
+    },
+    {
+      "userId": "user-ravi-01",
+      "farmId": "farm-gv-01",
+      "fieldId": "field-mango-01",
+      "title": "Inspect drip lines from mobile client",
+      "description": "",
+      "dueDate": "2026-09-08",
+      "status": "Completed",
+      "voiceCreated": false,
+      "source": "mobile",
+      "id": "task-1788835275901-0dr8d",
+      "createdAt": "2026-09-08T02:41:15.901Z",
+      "updatedAt": "2026-09-08T02:41:32.318Z"
+    },
+    {
+      "userId": "user-ravi-01",
+      "farmId": "farm-gv-01",
+      "fieldId": "field-mango-01",
+      "title": "Inspect mango leaves - from Mobile App",
+      "description": "",
+      "dueDate": "Tomorrow",
+      "status": "Completed",
+      "voiceCreated": false,
+      "source": "mobile",
+      "id": "task-1788822215104-16zx0",
+      "createdAt": "2026-09-07T23:03:35.104Z",
+      "updatedAt": "2026-09-08T03:06:37.981Z",
+      "completedAt": "2026-09-08T03:06:37.981Z"
+    },
+    {
+      "id": "task-01",
+      "userId": "user-ravi-01",
+      "farmId": "farm-gv-01",
+      "fieldId": "field-mango-01",
+      "title": "Apply Copper Oxychloride antifungal spray on Mango Parcel",
+      "description": "Mix 30g per 10L water. Spray uniformly across lower and middle canopies.",
+      "dueDate": "Today",
+      "status": "Pending",
+      "source": "website",
+      "createdAt": "2026-09-06T22:53:38.048Z",
+      "updatedAt": "2026-09-06T22:53:38.048Z"
+    },
+    {
+      "id": "task-02",
+      "userId": "user-ravi-01",
+      "farmId": "farm-gv-01",
+      "fieldId": "field-tomato-02",
+      "title": "Inspect Drip Emitters in Tomato Polyhouse",
+      "description": "Check pressure regulation valves and flush line 2.",
+      "dueDate": "Tomorrow",
+      "status": "Pending",
+      "source": "mobile",
+      "createdAt": "2026-09-06T22:53:38.048Z",
+      "updatedAt": "2026-09-06T22:53:38.048Z"
+    },
+    {
+      "id": "task-03",
+      "userId": "user-ravi-01",
+      "farmId": "farm-gv-01",
+      "fieldId": "field-strawberry-03",
+      "title": "Harvest Grade A Strawberries for Dispatch",
+      "description": "Pick early morning ripe berries before temperature exceeds 28°C.",
+      "dueDate": "Today",
+      "status": "Completed",
+      "source": "raspberry_pi",
+      "createdAt": "2026-09-05T22:53:38.048Z",
+      "updatedAt": "2026-09-06T22:53:38.048Z"
+    }
+  ],
+  "reminders": [
+    {
+      "userId": "user-ravi-01",
+      "farmId": "farm-gv-01",
+      "fieldId": "field-mango-01",
+      "title": "check drip filter tomorrow",
+      "timeStr": "Tomorrow • 08:00 AM",
+      "dueDateTime": "2026-09-09T03:07:18.300Z",
+      "completed": false,
+      "status": "Scheduled",
+      "source": "raspberry_pi",
+      "deviceId": "AGRO_PI_001",
+      "id": "remi-1788836838300-kgkdp",
+      "createdAt": "2026-09-08T03:07:18.300Z",
+      "updatedAt": "2026-09-08T03:07:18.300Z"
+    },
+    {
+      "id": "rem-01",
+      "userId": "user-ravi-01",
+      "farmId": "farm-gv-01",
+      "fieldId": "field-mango-01",
+      "title": "Calibrate soil moisture sensors in Mango Block B",
+      "timeStr": "Today • 04:00 PM",
+      "dueDateTime": "2026-09-07T22:53:38.048Z",
+      "completed": false,
+      "status": "Scheduled",
+      "source": "website",
+      "createdAt": "2026-09-07T22:53:38.048Z",
+      "updatedAt": "2026-09-07T22:53:38.048Z"
+    }
+  ],
+  "problems": [
+    {
+      "id": "prob-01",
+      "userId": "user-ravi-01",
+      "farmId": "farm-gv-01",
+      "fieldId": "field-mango-01",
+      "crop": "Mango",
+      "issueType": "Disease",
+      "severity": "Medium",
+      "dateReported": "Yesterday",
+      "farmerNote": "Fungal leaf spotting observed on south edge.",
+      "status": "Action Scheduled",
+      "aiAnalysis": {
+        "possibleDisease": "Anthracnose",
+        "confidence": 91,
+        "recommendedAction": "Apply Copper Oxychloride 50 WP (3g/L) spray in early morning.",
+        "preventativeTips": "Improve canopy aeration through summer pruning."
+      },
+      "source": "raspberry_pi",
+      "createdAt": "2026-09-06T22:53:38.048Z",
+      "updatedAt": "2026-09-06T22:53:38.048Z"
+    }
+  ],
+  "devices": [
+    {
+      "deviceId": "AGRO_PI_TEST_99",
+      "userId": "user-ravi-01",
+      "farmId": "farm-gv-01",
+      "fieldId": "field-mango-01",
+      "deviceType": "raspberry_pi",
+      "name": "AgroVision Field Hub",
+      "status": "online",
+      "paired": true,
+      "authToken": "token-QUdST19QSV9URVNUXzk5LTE3ODg4MzY4NzM3NDA=",
+      "lastSeen": "2026-09-08T03:07:53.740Z",
+      "id": "devi-1788836873740-lxft3",
+      "createdAt": "2026-09-08T03:07:53.740Z",
+      "updatedAt": "2026-09-08T03:07:53.740Z"
+    },
+    {
+      "deviceId": "AGRO_PI_001",
+      "userId": "user-ravi-01",
+      "deviceType": "raspberry_pi",
+      "name": "Device AGRO_PI_001",
+      "status": "online",
+      "batteryLevel": 100,
+      "lastSeen": "2026-09-08T03:21:08.212Z",
+      "id": "devi-1788836734813-a5p4x",
+      "createdAt": "2026-09-08T03:05:34.813Z",
+      "updatedAt": "2026-09-08T03:21:08.212Z"
+    },
+    {
+      "deviceId": "mobile-client-01",
+      "userId": "user-ravi-01",
+      "deviceType": "mobile",
+      "name": "AgroVision Mobile Phone",
+      "status": "online",
+      "batteryLevel": 95,
+      "firmwareVersion": "v1.0.0-pwa",
+      "ipAddress": "::1",
+      "lastSeen": "2026-09-08T04:50:44.175Z",
+      "id": "devi-1788835233684-8s016",
+      "createdAt": "2026-09-08T02:40:33.684Z",
+      "updatedAt": "2026-09-08T04:50:44.175Z"
+    },
+    {
+      "deviceId": "rpi-field-01",
+      "userId": "user-ravi-01",
+      "deviceType": "raspberry_pi",
+      "name": "AgroVision Field Hub (Raspberry Pi 4B)",
+      "status": "online",
+      "batteryLevel": 94,
+      "ipAddress": "192.168.1.105",
+      "firmwareVersion": "v2.4.1",
+      "lastSeen": "2026-09-07T22:53:38.048Z",
+      "createdAt": "2024-03-15T00:00:00Z",
+      "updatedAt": "2026-09-07T22:53:38.048Z"
+    },
+    {
+      "deviceId": "mobile-pixel-01",
+      "userId": "user-ravi-01",
+      "deviceType": "mobile",
+      "name": "Ravi Pixel 8 Pro",
+      "status": "online",
+      "batteryLevel": 88,
+      "lastSeen": "2026-09-07T22:53:38.048Z",
+      "createdAt": "2024-03-15T00:00:00Z",
+      "updatedAt": "2026-09-07T22:53:38.048Z"
+    }
+  ],
+  "weather": {
+    "field-mango-01": {
+      "locationName": "Mango Plantation",
+      "latitude": 13.299,
+      "longitude": 77.5345,
+      "current": {
+        "temperature": 23,
+        "feelsLike": 24,
+        "humidity": 78,
+        "rainProbability": 78,
+        "precipitation": 0,
+        "windSpeed": 15,
+        "weatherCode": 2,
+        "weatherDescription": "Partly cloudy",
+        "lastUpdated": "08:10"
+      },
+      "daily": [
+        {
+          "date": "2026-09-08",
+          "dayName": "Today",
+          "tempMax": 30,
+          "tempMin": 20,
+          "rainProbability": 78,
+          "precipitationSum": 2,
+          "weatherCode": 53,
+          "weatherDescription": "Light drizzle"
+        },
+        {
+          "date": "2026-09-09",
+          "dayName": "Tomorrow",
+          "tempMax": 29,
+          "tempMin": 20,
+          "rainProbability": 47,
+          "precipitationSum": 1,
+          "weatherCode": 51,
+          "weatherDescription": "Light drizzle"
+        },
+        {
+          "date": "2026-09-10",
+          "dayName": "Thu",
+          "tempMax": 30,
+          "tempMin": 20,
+          "rainProbability": 73,
+          "precipitationSum": 0,
+          "weatherCode": 3,
+          "weatherDescription": "Overcast"
+        },
+        {
+          "date": "2026-09-11",
+          "dayName": "Fri",
+          "tempMax": 31,
+          "tempMin": 20,
+          "rainProbability": 32,
+          "precipitationSum": 0.2,
+          "weatherCode": 51,
+          "weatherDescription": "Light drizzle"
+        },
+        {
+          "date": "2026-09-12",
+          "dayName": "Sat",
+          "tempMax": 31,
+          "tempMin": 20,
+          "rainProbability": 18,
+          "precipitationSum": 0,
+          "weatherCode": 3,
+          "weatherDescription": "Overcast"
+        },
+        {
+          "date": "2026-09-13",
+          "dayName": "Sun",
+          "tempMax": 31,
+          "tempMin": 20,
+          "rainProbability": 19,
+          "precipitationSum": 0,
+          "weatherCode": 3,
+          "weatherDescription": "Overcast"
+        },
+        {
+          "date": "2026-09-14",
+          "dayName": "Mon",
+          "tempMax": 29,
+          "tempMin": 19,
+          "rainProbability": 27,
+          "precipitationSum": 0,
+          "weatherCode": 3,
+          "weatherDescription": "Overcast"
+        }
+      ],
+      "updatedAt": "2026-09-08T02:40:35.121Z"
+    }
+  },
+  "activity": [
+    {
+      "id": "act-1788837668558",
+      "userId": "user-ravi-01",
+      "action": "Video Recorded",
+      "details": "Field video capture (1s)",
+      "fieldName": "Mango Plantation",
+      "type": "media",
+      "source": "raspberry_pi",
+      "timestamp": "Just now",
+      "createdAt": "2026-09-08T03:21:08.558Z"
+    },
+    {
+      "id": "act-1788837668499",
+      "userId": "user-ravi-01",
+      "action": "Photo Captured",
+      "details": "Unit test field photo",
+      "fieldName": "Mango Plantation",
+      "type": "media",
+      "source": "raspberry_pi",
+      "timestamp": "Just now",
+      "createdAt": "2026-09-08T03:21:08.499Z"
+    },
+    {
+      "id": "act-1788837571879",
+      "userId": "user-ravi-01",
+      "action": "Video Recorded",
+      "details": "Field video capture (3s)",
+      "fieldName": "Mango Plantation",
+      "type": "media",
+      "source": "raspberry_pi",
+      "timestamp": "Just now",
+      "createdAt": "2026-09-08T03:19:31.879Z"
+    },
+    {
+      "id": "act-1788837458778",
+      "userId": "user-ravi-01",
+      "action": "Photo Captured",
+      "details": "Field camera capture",
+      "fieldName": "Mango Plantation",
+      "type": "media",
+      "source": "raspberry_pi",
+      "timestamp": "Just now",
+      "createdAt": "2026-09-08T03:17:38.778Z"
+    },
+    {
+      "id": "act-1788837430069",
+      "userId": "user-ravi-01",
+      "action": "Photo Captured",
+      "details": "Field camera capture",
+      "fieldName": "Mango Plantation",
+      "type": "media",
+      "source": "raspberry_pi",
+      "timestamp": "Just now",
+      "createdAt": "2026-09-08T03:17:10.069Z"
+    },
+    {
+      "id": "act-1788837419008",
+      "userId": "user-ravi-01",
+      "action": "Photo Captured",
+      "details": "Camera diagnostic test photo",
+      "fieldName": "Mango Plantation",
+      "type": "media",
+      "source": "raspberry_pi",
+      "timestamp": "Just now",
+      "createdAt": "2026-09-08T03:16:59.008Z"
+    },
+    {
+      "id": "act-1788836851569",
+      "userId": "user-ravi-01",
+      "action": "Task Created",
+      "details": "Check Raspberry Pi SSE Stream",
+      "fieldName": "Mango Plantation",
+      "type": "task",
+      "source": "mobile",
+      "timestamp": "Just now",
+      "createdAt": "2026-09-08T03:07:31.569Z"
+    },
+    {
+      "id": "act-1788836811338",
+      "userId": "user-ravi-01",
+      "action": "Task Created",
+      "details": "Create a task to check irrigation valves tomorrow",
+      "fieldName": "Mango Plantation",
+      "type": "task",
+      "source": "raspberry_pi",
+      "timestamp": "Just now",
+      "createdAt": "2026-09-08T03:06:51.338Z"
+    },
+    {
+      "id": "act-1788836797984",
+      "userId": "user-ravi-01",
+      "action": "Task Completed",
+      "details": "Inspect mango leaves - from Mobile App",
+      "fieldName": "Mango Plantation",
+      "type": "task",
+      "source": "raspberry_pi",
+      "timestamp": "Just now",
+      "createdAt": "2026-09-08T03:06:37.984Z"
+    },
+    {
+      "id": "act-1788836741922",
+      "userId": "user-ravi-01",
+      "action": "Observation Recorded",
+      "details": "the leaves in northern sector are showing mild yellowing",
+      "fieldName": "Mango Plantation",
+      "type": "observation",
+      "source": "raspberry_pi",
+      "timestamp": "Just now",
+      "createdAt": "2026-09-08T03:05:41.922Z"
+    },
+    {
+      "id": "act-1788836625041",
+      "userId": "user-ravi-01",
+      "action": "Observation Recorded",
+      "details": "checking mango blooms for powdery mildew",
+      "fieldName": "Mango Plantation",
+      "type": "observation",
+      "source": "raspberry_pi",
+      "timestamp": "Just now",
+      "createdAt": "2026-09-08T03:03:45.041Z"
+    },
+    {
+      "id": "act-1788835311733",
+      "userId": "user-ravi-01",
+      "action": "Observation Recorded",
+      "details": "Inspected drip irrigation lines",
+      "fieldName": "Mango Plantation",
+      "type": "observation",
+      "source": "mobile",
+      "timestamp": "Just now",
+      "createdAt": "2026-09-08T02:41:51.733Z"
+    },
+    {
+      "id": "act-1788835292333",
+      "userId": "user-ravi-01",
+      "action": "Task Completed",
+      "details": "Inspect drip lines from mobile client",
+      "fieldName": "Farm",
+      "type": "task",
+      "source": "mobile",
+      "timestamp": "Just now",
+      "createdAt": "2026-09-08T02:41:32.333Z"
+    },
+    {
+      "id": "act-1788835275919",
+      "userId": "user-ravi-01",
+      "action": "Task Created",
+      "details": "Inspect drip lines from mobile client",
+      "fieldName": "Mango Plantation",
+      "type": "task",
+      "source": "mobile",
+      "timestamp": "Just now",
+      "createdAt": "2026-09-08T02:41:15.919Z"
+    },
+    {
+      "id": "act-1788822215126",
+      "userId": "user-ravi-01",
+      "action": "Observation Recorded",
+      "details": "Yellow leaves detected by Raspberry Pi camera",
+      "fieldName": "Mango Plantation",
+      "type": "observation",
+      "source": "raspberry_pi",
+      "timestamp": "Just now",
+      "createdAt": "2026-09-07T23:03:35.126Z"
+    },
+    {
+      "id": "act-1788822215107",
+      "userId": "user-ravi-01",
+      "action": "Task Created",
+      "details": "Inspect mango leaves - from Mobile App",
+      "fieldName": "Mango Plantation",
+      "type": "task",
+      "source": "mobile",
+      "timestamp": "Just now",
+      "createdAt": "2026-09-07T23:03:35.107Z"
+    },
+    {
+      "id": "act-01",
+      "userId": "user-ravi-01",
+      "action": "Observation Recorded",
+      "details": "Anthracnose fungal lesions detected via optical camera",
+      "fieldName": "Mango Plantation",
+      "type": "observation",
+      "source": "raspberry_pi",
+      "timestamp": "Yesterday • 10:32 AM"
+    },
+    {
+      "id": "act-02",
+      "userId": "user-ravi-01",
+      "action": "Task Created",
+      "details": "Apply Copper Oxychloride antifungal spray",
+      "fieldName": "Mango Plantation",
+      "type": "task",
+      "source": "website",
+      "timestamp": "Yesterday • 10:35 AM"
+    },
+    {
+      "id": "act-03",
+      "userId": "user-ravi-01",
+      "action": "Task Completed",
+      "details": "Harvest Grade A Strawberries for Dispatch",
+      "fieldName": "Organic Strawberry Parcel",
+      "type": "task",
+      "source": "mobile",
+      "timestamp": "Today • 08:30 AM"
+    },
+    {
+      "id": "act-04",
+      "userId": "user-ravi-01",
+      "action": "Device Online",
+      "details": "Raspberry Pi Field Hub connected and synced telemetry",
+      "fieldName": "Green Valley Farm",
+      "type": "device",
+      "source": "raspberry_pi",
+      "timestamp": "Just now"
+    }
+  ]
+}

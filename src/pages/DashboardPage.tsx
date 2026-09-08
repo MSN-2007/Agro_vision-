@@ -71,8 +71,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
             <div className="flex items-center gap-2 text-forest-200 text-xs font-bold uppercase tracking-wider mb-2">
-              <Sun className="w-4 h-4 text-amber-400" />
-              <span>Personalized Farm Intelligence Dashboard</span>
+              <Sun className="w-4 h-4 text-amber-300" />
+              <span>Farm Operations Overview</span>
             </div>
             <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight">
               Good morning, {user.name}
@@ -102,9 +102,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
                 </div>
               )}
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/15 backdrop-blur-md">
-                <Glasses className="w-3.5 h-3.5 text-sky-300" />
+                <Activity className="w-3.5 h-3.5 text-emerald-300" />
                 <span>
-                  Glasses: {device.connected ? `Connected (${device.batteryLevel}%)` : 'Standby'}
+                  Sync: {device.connected ? `Mobile GPS & Audio (${device.batteryLevel}%)` : 'Offline'}
                 </span>
               </div>
             </div>
@@ -114,9 +114,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
           <div className="shrink-0 flex flex-col items-start md:items-end gap-2">
             <button
               onClick={() => setIsBriefingModalOpen(true)}
-              className="px-5 py-3 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-900 font-extrabold text-sm shadow-lg shadow-amber-500/20 flex items-center gap-2 transition-all active:scale-95"
+              className="px-5 py-3 rounded-2xl bg-white hover:bg-forest-50 text-forest-900 font-bold text-sm shadow-md flex items-center gap-2 transition-all active:scale-95"
             >
-              <Sparkles className="w-4 h-4 text-slate-900" />
+              <Sun className="w-4 h-4 text-amber-500" />
               <span>Listen to Morning Briefing</span>
             </button>
             <span className="text-xs text-forest-200">

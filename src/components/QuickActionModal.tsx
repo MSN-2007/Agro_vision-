@@ -61,7 +61,7 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
   // Voice speech simulation toggle
   const toggleVoiceInput = (setter: (text: string) => void, promptText: string) => {
     setIsListening(true);
-    showToast('Listening...', 'AgroVision smart glasses microphone active', 'info');
+    showToast('Listening...', 'Microphone active', 'info');
     setTimeout(() => {
       setter(promptText);
       setIsListening(false);
@@ -187,7 +187,7 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
                 </div>
               </div>
               <p className="text-xs text-slate-500">
-                Trigger camera shutter on your smart glasses hands-free via voice or press button below.
+                Trigger camera capture to save geotagged field photos.
               </p>
               <div className="flex gap-3">
                 <button

@@ -18,7 +18,7 @@ export const INITIAL_USER: FarmerUser = {
   id: 'user-ravi-01',
   name: 'Ravi Kumar',
   phone: '+91 98450 12890',
-  preferredLanguage: 'English',
+  preferredLanguage: 'en',
   defaultFarmId: 'farm-gv-01',
   avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80'
 };
@@ -233,9 +233,25 @@ export const INITIAL_PROBLEMS: ProblemReport[] = [
       possibleDisease: 'Anthracnose (Colletotrichum gloeosporioides)',
       confidence: 87,
       severity: 'Moderate',
+      severityScore: 6.8,
+      foliarImpactPct: 18,
+      urgencyLevel: 'Within 48h',
       recommendedAction: 'Inspect affected branch cluster. Prune severely spotted leaves. Apply Copper Oxychloride (0.3%) or Carbendazim spray before humid evening forecast.',
       modelName: 'AgroVision-CropVision v3.2 (Dedicated Agricultural CV Model)',
-      analyzedAt: 'Yesterday • 10:33 AM'
+      analyzedAt: 'Yesterday • 10:33 AM',
+      dataSource: {
+        sourceType: 'Smartphone High-Res Field Photo + Multi-Spectral Sensor Scan',
+        imageResolution: '3024 × 4032 (12.2 MP, RGB Exif)',
+        weatherTelemetry: 'OpenWeather/Open-Meteo: 28°C, 62% humidity, 11 km/h wind – High fungal spore risk',
+        gpsLocation: '13.2992° N, 77.5348° E (Devanahalli Parcel Sector NE)',
+        parcelName: 'Mango Plantation (Alphonso & Kesar)',
+        referenceCorpus: 'ICAR-CISH Mango Pathology Corpus & AgroVision-CropVision v3.2',
+        extractedFeatures: [
+          'Concentric dark necrotic lesions on lower foliage edges',
+          'Chlorotic halo around irregular foliar spots',
+          'Early petiole and leaf margin necrosis'
+        ]
+      }
     }
   },
   {
@@ -252,9 +268,24 @@ export const INITIAL_PROBLEMS: ProblemReport[] = [
       possibleDisease: 'Early Blight (Alternaria solani)',
       confidence: 92,
       severity: 'Mild',
+      severityScore: 4.2,
+      foliarImpactPct: 8,
+      urgencyLevel: 'Within 48h',
       recommendedAction: 'Remove lower foliage touching soil. Avoid overhead sprinkler irrigation. Ensure mulch covers exposed soil.',
       modelName: 'AgroVision-CropVision v3.2',
-      analyzedAt: '3 days ago • 11:22 AM'
+      analyzedAt: '3 days ago • 11:22 AM',
+      dataSource: {
+        sourceType: 'Smartphone Macro Photo + Soil Moisture Scout Log',
+        imageResolution: '2560 × 1920 (8.0 MP, Macro Focus)',
+        weatherTelemetry: 'OpenWeather/Open-Meteo: 26°C, 68% humidity, 8 km/h wind',
+        gpsLocation: '13.2962° N, 77.5349° E (Tomato Field Row 4 Central)',
+        parcelName: 'Tomato Field (Tomato (Arka Rakshak))',
+        referenceCorpus: 'IIHR Solanaceae Disease Standard & AgroVision-CropVision v3.2',
+        extractedFeatures: [
+          'Concentric target-like circular brown rings on lower foliage',
+          'Soil-contact petiole decay near drip valve leak'
+        ]
+      }
     }
   }
 ];
@@ -394,7 +425,7 @@ export const INITIAL_CHAT: AssistantChatMessage[] = [
   {
     id: 'chat-01',
     role: 'assistant',
-    content: 'Good morning Ravi! I am AgroVision, your wearable AI agricultural assistant. You are currently in the Mango Plantation. How can I assist you on the farm today?',
+    content: 'Good morning Ravi. I am AgroVision, your mobile agricultural assistant. You are in the Mango Plantation. How can I assist you on the farm today?',
     timestamp: '10:30 AM',
     hasAudio: true
   }

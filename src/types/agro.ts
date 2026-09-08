@@ -44,11 +44,28 @@ export interface Farm {
   isDemoFarm?: boolean;
 }
 
+export type SupportedLanguage = 'en' | 'hi' | 'mr' | 'te';
+
+export interface LanguageConfig {
+  code: SupportedLanguage;
+  name: string;
+  nativeName: string;
+  speechLocale: string;
+  flag: string;
+}
+
+export const SUPPORTED_LANGUAGES: LanguageConfig[] = [
+  { code: 'en', name: 'English', nativeName: 'English (India)', speechLocale: 'en-IN', flag: '🇮🇳' },
+  { code: 'hi', name: 'Hindi', nativeName: 'हिन्दी', speechLocale: 'hi-IN', flag: '🇮🇳' },
+  { code: 'mr', name: 'Marathi', nativeName: 'मराठी', speechLocale: 'mr-IN', flag: '🚩' },
+  { code: 'te', name: 'Telugu', nativeName: 'తెలుగు', speechLocale: 'te-IN', flag: '🌾' }
+];
+
 export interface FarmerUser {
   id: string;
   name: string;
   phone: string;
-  preferredLanguage: string;
+  preferredLanguage: SupportedLanguage;
   defaultFarmId: string;
   avatarUrl: string;
 }
@@ -107,6 +124,18 @@ export interface ProblemReport {
     recommendedAction: string;
     modelName: string;
     analyzedAt: string;
+    severityScore?: number; // e.g. 6.8 / 10
+    foliarImpactPct?: number; // e.g. 18% of canopy
+    urgencyLevel?: 'Immediate (24h)' | 'Within 48h' | 'Routine Monitoring';
+    dataSource?: {
+      sourceType: string;
+      imageResolution?: string;
+      weatherTelemetry?: string;
+      gpsLocation?: string;
+      parcelName?: string;
+      referenceCorpus?: string;
+      extractedFeatures?: string[];
+    };
   };
 }
 
@@ -182,6 +211,7 @@ export interface FieldWeather {
   hourlyForecast: HourlyWeatherPoint[];
   dailyForecast: DailyWeatherForecast[];
   lastUpdated: string;
+  provider?: string;
   isError?: boolean;
   errorMessage?: string;
 }
@@ -226,6 +256,13 @@ export interface AssistantChatMessage {
   actionTaken?: string;
   hasAudio?: boolean;
   voiceInputDetected?: boolean;
+  taskActionMeta?: {
+    type: 'created' | 'completed' | 'deleted' | 'updated';
+    taskTitle: string;
+    dueDate?: string;
+    fieldName?: string;
+    taskId?: string;
+  };
 }
 
 export interface ActivityLogItem {

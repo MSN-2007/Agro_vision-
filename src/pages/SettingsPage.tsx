@@ -1,45 +1,42 @@
 import React, { useState } from 'react';
 import {
-  User,
   Settings,
-  Globe,
   Heart,
-  Bell,
-  Shield,
-  Glasses,
-  Check,
   Droplets,
   Clock,
-  ThermometerSun
+  ThermometerSun,
+  Key,
+  Sparkles,
+  CloudSun
 } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
+import { geminiService } from '../services/geminiService';
+import { getStoredWeatherKeys, saveStoredWeatherKeys } from '../services/weatherService';
+import { SUPPORTED_LANGUAGES, SupportedLanguage } from '../types/agro';
 
 export const SettingsPage: React.FC = () => {
-  const { user, updateUser, wellBeing, acknowledgeHydration, showToast, currentFarm } = useFarm();
+  const { user, updateUser, wellBeing, acknowledgeHydration, showToast, setLanguage: setGlobalLanguage } = useFarm();
 
   const [name, setName] = useState(user.name);
   const [phone, setPhone] = useState(user.phone);
-  const [language, setLanguage] = useState(user.preferredLanguage);
+  const [language, setLanguage] = useState<SupportedLanguage>(user.preferredLanguage || 'en');
   const [wakeWord, setWakeWord] = useState('Hey Vision');
   const [speakingSpeed, setSpeakingSpeed] = useState('Normal (1.0x)');
 
-  const indianLanguages = [
-    { code: 'en', name: 'English (India)' },
-    { code: 'hi', name: 'हिन्दी (Hindi)' },
-    { code: 'kn', name: 'ಕನ್ನಡ (Kannada)' },
-    { code: 'te', name: 'తెలుగు (Telugu)' },
-    { code: 'ta', name: 'தமிழ் (Tamil)' },
-    { code: 'mr', name: 'मराठी (Marathi)' },
-    { code: 'bn', name: 'বাংলা (Bengali)' },
-    { code: 'pa', name: 'ਪੰਜਾਬੀ (Punjabi)' },
-    { code: 'gu', name: 'ગુજરાતી (Gujarati)' },
-    { code: 'ml', name: 'മലയാളം (Malayalam)' }
-  ];
+  const initialGeminiKeys = geminiService.getApiKeys();
+  const initialOwmKeys = getStoredWeatherKeys();
+  const [primaryGeminiKey, setPrimaryGeminiKey] = useState(initialGeminiKeys[0] || '');
+  const [backupGeminiKey, setBackupGeminiKey] = useState(initialGeminiKeys[1] || '');
+  const [primaryOwmKey, setPrimaryOwmKey] = useState(initialOwmKeys[0] || '');
+  const [backupOwmKey, setBackupOwmKey] = useState(initialOwmKeys[1] || '');
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
     updateUser({ name, phone, preferredLanguage: language });
-    showToast('Settings Saved', 'Profile preferences updated successfully', 'success');
+    setGlobalLanguage(language);
+    geminiService.setApiKeys([primaryGeminiKey, backupGeminiKey].filter(Boolean));
+    saveStoredWeatherKeys([primaryOwmKey, backupOwmKey].filter(Boolean));
+    showToast('Settings Saved', 'Profile, Gemini AI, and Weather credentials updated successfully', 'success');
   };
 
   return (
@@ -58,7 +55,7 @@ export const SettingsPage: React.FC = () => {
         </p>
       </div>
 
-      {/* 1. Farmer Well-Being & Safety Section (Master Prompt Section 19) */}
+      {/* 1. Farmer Well-Being & Safety Section */}
       <div className="bg-gradient-to-r from-emerald-50 via-forest-50 to-teal-50 rounded-3xl p-6 border border-emerald-200/80 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-emerald-200/60">
           <div className="flex items-center gap-3">
@@ -143,25 +140,21 @@ export const SettingsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Regional Multilingual Selector (Master Prompt Section 22) */}
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
               Interface & Voice Language (Indian Localization Ready)
             </label>
             <select
               value={language}
-              onChange={e => setLanguage(e.target.value)}
+              onChange={e => setLanguage(e.target.value as SupportedLanguage)}
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-forest-500 focus:outline-none"
             >
-              {indianLanguages.map(lang => (
-                <option key={lang.code} value={lang.name}>
-                  {lang.name}
+              {SUPPORTED_LANGUAGES.map(lang => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.flag} {lang.nativeName} ({lang.name})
                 </option>
               ))}
             </select>
-            <p className="text-[11px] text-slate-400 mt-1">
-              Supports multilingual speech recognition and regional text for Indian farmers.
-            </p>
           </div>
 
           {/* Assistant Settings */}
@@ -193,6 +186,76 @@ export const SettingsPage: React.FC = () => {
                   <option>Normal (1.0x)</option>
                   <option>Fast (1.2x)</option>
                 </select>
+              </div>
+            </div>
+          </div>
+
+          {/* API Keys & Integrations */}
+          <div className="pt-4 border-t border-slate-100 space-y-4">
+            <div className="flex items-center gap-2">
+              <Key className="w-4 h-4 text-forest-700" />
+              <h4 className="font-extrabold text-slate-900 text-sm">API Integrations & Telemetry Credentials</h4>
+            </div>
+
+            {/* Gemini Keys */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                  Primary Gemini AI Key
+                </label>
+                <input
+                  type="password"
+                  value={primaryGeminiKey}
+                  onChange={e => setPrimaryGeminiKey(e.target.value)}
+                  placeholder="AIzaSy..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-forest-500 focus:outline-none font-mono"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                  Backup Gemini AI Key (Failover)
+                </label>
+                <input
+                  type="password"
+                  value={backupGeminiKey}
+                  onChange={e => setBackupGeminiKey(e.target.value)}
+                  placeholder="AIzaSy..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-forest-500 focus:outline-none font-mono"
+                />
+              </div>
+            </div>
+
+            {/* OpenWeather Keys */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                  <CloudSun className="w-3.5 h-3.5 text-forest-600" />
+                  Primary OpenWeather Key
+                </label>
+                <input
+                  type="password"
+                  value={primaryOwmKey}
+                  onChange={e => setPrimaryOwmKey(e.target.value)}
+                  placeholder="659e3216..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-forest-500 focus:outline-none font-mono"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                  <CloudSun className="w-3.5 h-3.5 text-forest-600" />
+                  Backup OpenWeather Key
+                </label>
+                <input
+                  type="password"
+                  value={backupOwmKey}
+                  onChange={e => setBackupOwmKey(e.target.value)}
+                  placeholder="2e6f5c9c..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-forest-500 focus:outline-none font-mono"
+                />
               </div>
             </div>
           </div>

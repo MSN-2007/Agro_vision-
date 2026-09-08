@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  Glasses,
+  Smartphone,
   Battery,
   Bluetooth,
   Navigation,
@@ -24,14 +24,14 @@ export const DevicePage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-forest-700 text-xs font-bold uppercase tracking-wider">
-            <Glasses className="w-4 h-4" />
-            <span>Hardware Telemetry & Wearable Management</span>
+            <Smartphone className="w-4 h-4" />
+            <span>Field Device & GPS Companion</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">
-            AgroVision Smart Glasses Hub
+            Field Device Companion
           </h1>
           <p className="text-xs sm:text-sm text-slate-500">
-            Real-time diagnostics, sensor calibration, optical camera status, and wireless synchronization.
+            Diagnostics, RTK GPS accuracy, field camera pipeline, and local cache synchronization.
           </p>
         </div>
 
@@ -52,20 +52,20 @@ export const DevicePage: React.FC = () => {
             }`}
           >
             <Power className="w-4 h-4" />
-            <span>{device.connected ? 'Disconnect Glasses' : 'Connect Glasses'}</span>
+            <span>{device.connected ? 'Disconnect Companion' : 'Connect Companion'}</span>
           </button>
         </div>
       </div>
 
-      {/* Visual Glasses Representation HUD (Master Prompt Section 18) */}
+      {/* Visual Device Representation */}
       <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-forest-950 text-white rounded-3xl p-8 shadow-2xl relative overflow-hidden">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
           {/* Left: Device Graphic */}
           <div className="lg:col-span-5 text-center space-y-4">
             <div className="relative inline-block">
-              {/* Stylized Glasses Silhouette with HUD accents */}
-              <div className="w-64 h-32 mx-auto bg-slate-800/80 rounded-3xl border-2 border-forest-500/60 flex items-center justify-center p-4 relative shadow-inner">
-                <Glasses className="w-36 h-36 text-forest-400 opacity-90 drop-shadow-md" />
+              {/* Stylized Smartphone Silhouette */}
+              <div className="w-40 h-52 mx-auto bg-slate-800/80 rounded-3xl border-2 border-forest-500/60 flex items-center justify-center p-4 relative shadow-inner">
+                <Smartphone className="w-24 h-24 text-forest-400 opacity-90 drop-shadow-md" />
                 {/* Glowing LED sensor dot */}
                 <span className={`absolute top-4 right-4 w-3 h-3 rounded-full ${
                   device.connected ? 'bg-emerald-400 shadow-lg shadow-emerald-500/50 animate-ping' : 'bg-rose-500'
@@ -79,7 +79,7 @@ export const DevicePage: React.FC = () => {
             <div>
               <h2 className="text-xl font-extrabold">{device.model}</h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                Dual 12MP Ultra-wide Optics • Quad Noise-Cancelling Microphones
+                Field Companion • High-Precision Geotagging & Audio
               </p>
             </div>
           </div>

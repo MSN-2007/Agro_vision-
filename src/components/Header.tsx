@@ -2,14 +2,19 @@ import React from 'react';
 import {
   Menu,
   MapPin,
-  Glasses,
+  Smartphone,
   Bell,
   Volume2,
-  Sparkles,
+  SlidersHorizontal,
   ChevronDown,
-  Navigation
+  Navigation,
+  Languages,
+  Cloud,
+  CloudOff,
+  RefreshCw
 } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
+import { SUPPORTED_LANGUAGES, SupportedLanguage } from '../types/agro';
 
 interface HeaderProps {
   onOpenSidebar: () => void;
@@ -30,10 +35,19 @@ export const Header: React.FC<HeaderProps> = ({
     notifications,
     setIsNotificationDrawerOpen,
     simulateMorningBriefing,
-    selectField
+    selectField,
+    currentLanguage,
+    setLanguage,
+    syncStatus
   } = useFarm();
 
   const unreadCount = notifications.filter(n => !n.read).length;
+
+  const syncPill = syncStatus === 'connected'
+    ? { icon: <Cloud className="w-3.5 h-3.5" />, label: 'Cloud Synced', cls: 'bg-emerald-50 border-emerald-200 text-emerald-800' }
+    : syncStatus === 'reconnecting'
+    ? { icon: <RefreshCw className="w-3.5 h-3.5 animate-spin" />, label: 'Reconnecting...', cls: 'bg-amber-50 border-amber-200 text-amber-800' }
+    : { icon: <CloudOff className="w-3.5 h-3.5" />, label: 'Backend Offline', cls: 'bg-red-50 border-red-200 text-red-700' };
 
   return (
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 lg:px-8 py-3 transition-all">
@@ -96,22 +110,37 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Right Side: Demo Bar Toggle + Glasses Status + Morning Briefing + Notifications */}
+        {/* Right Side: Dev Sim Toggle + Companion Status + Morning Briefing + Notifications */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Demo Mode Toggle Button */}
+          {/* Multilingual Voice & Assistant Language Selector */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-forest-50 border border-forest-200/90 text-forest-900 font-semibold text-xs shadow-2xs">
+            <Languages className="w-3.5 h-3.5 text-forest-700 shrink-0" />
+            <select
+              value={currentLanguage}
+              onChange={e => setLanguage(e.target.value as SupportedLanguage)}
+              aria-label="Select AI Voice & Language"
+              className="bg-transparent border-0 font-bold text-forest-900 text-xs focus:ring-0 focus:outline-none cursor-pointer pr-1"
+            >
+              {SUPPORTED_LANGUAGES.map(lang => (
+                <option key={lang.code} value={lang.code} className="text-slate-900 bg-white">
+                  {lang.flag} {lang.nativeName}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Diagnostic Simulator Toggle */}
           <button
             onClick={() => setIsDemoOpen(!isDemoOpen)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition-all shadow-sm ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold text-xs transition-all border ${
               isDemoOpen
-                ? 'bg-amber-500 text-white shadow-amber-500/20'
-                : 'bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300'
+                ? 'bg-forest-700 text-white border-forest-800 shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border-slate-200'
             }`}
+            title="Toggle Farm GPS & Sensor Simulator"
           >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Demo Mode</span>
-            <span className="hidden sm:inline text-[10px] px-1.5 py-0.2 bg-black/10 rounded">
-              {isDemoOpen ? 'Hide' : 'Simulate'}
-            </span>
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Sim Sandbox</span>
           </button>
 
           {/* Morning Briefing Audio Button */}
@@ -124,10 +153,16 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="hidden sm:inline">Morning Briefing</span>
           </button>
 
-          {/* Smart Glasses Live Connectivity Pill */}
-          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100 text-slate-700 text-xs font-medium border border-slate-200">
-            <Glasses className={`w-4 h-4 ${device.connected ? 'text-forest-600' : 'text-slate-400'}`} />
-            <span>{device.connected ? `${device.batteryLevel}%` : 'Offline'}</span>
+          {/* Backend Sync Status Pill */}
+          <div className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold border transition-all duration-500 ${syncPill.cls}`} title={`Backend: ${syncStatus}`}>
+            {syncPill.icon}
+            <span className="hidden md:inline">{syncPill.label}</span>
+          </div>
+
+          {/* Mobile Companion Live Connectivity Pill */}
+          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-forest-50 text-forest-800 text-xs font-semibold border border-forest-200/80">
+            <Smartphone className={`w-3.5 h-3.5 ${device.connected ? 'text-forest-600' : 'text-slate-400'}`} />
+            <span>{device.connected ? `Phone Sync (${device.batteryLevel}%)` : 'Offline'}</span>
           </div>
 
           {/* Notifications Trigger */}

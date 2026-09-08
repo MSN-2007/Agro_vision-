@@ -9,12 +9,13 @@ import {
   Plus,
   Trash2,
   Navigation,
-  Sparkles,
-  Info,
   Layers,
   X,
-  Compass,
-  Maximize2
+  ChevronDown,
+  ChevronUp,
+  Maximize2,
+  Crosshair,
+  Crop
 } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { LatLng, Field } from '../types/agro';
@@ -27,6 +28,7 @@ export const MapPage: React.FC = () => {
     currentGps,
     setCurrentGps,
     updateFieldBoundary,
+    addField,
     locateMe,
     selectField,
     showToast
@@ -34,17 +36,25 @@ export const MapPage: React.FC = () => {
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
+  const baseTileLayerRef = useRef<L.TileLayer | null>(null);
   const farmerMarkerRef = useRef<L.Marker | null>(null);
   const polygonLayersRef = useRef<Record<string, L.Polygon>>({});
   const vertexMarkersGroupRef = useRef<L.LayerGroup | null>(null);
   const activeDrawPolygonRef = useRef<L.Polygon | null>(null);
 
-  // Editing & Drawing State
+  // Map and View Mode States
+  const [mapLayerType, setMapLayerType] = useState<'satellite' | 'streets'>('satellite');
   const [editorMode, setEditorMode] = useState<'view' | 'draw' | 'edit'>('view');
   const [selectedFieldId, setSelectedFieldId] = useState<string>(
     currentField?.id || currentFarm.fields[0]?.id || ''
   );
   const [areaUnit, setAreaUnit] = useState<'acres' | 'hectares' | 'sqm'>('acres');
+  const [isHudCollapsed, setIsHudCollapsed] = useState(false);
+
+  // Add Field Modal State
+  const [isAddFieldModalOpen, setIsAddFieldModalOpen] = useState(false);
+  const [newFieldName, setNewFieldName] = useState('');
+  const [newFieldCrop, setNewFieldCrop] = useState('Mango');
 
   // Active Points for Edit / Draw with History for Undo/Redo
   const [activePoints, setActivePoints] = useState<LatLng[]>([]);
@@ -100,7 +110,7 @@ export const MapPage: React.FC = () => {
 
   const calculatedAcres = calculatePolygonAreaAcres(activePoints);
 
-  // Initialize Map
+  // 1. Initialize Map
   useEffect(() => {
     if (!mapContainerRef.current) return;
     if (mapInstanceRef.current) return;
@@ -115,15 +125,6 @@ export const MapPage: React.FC = () => {
 
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-    // High quality CartoDB Voyager tiles
-    L.tileLayer(
-      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-      {
-        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-        maxZoom: 20
-      }
-    ).addTo(map);
-
     const vertexGroup = L.layerGroup().addTo(map);
     vertexMarkersGroupRef.current = vertexGroup;
 
@@ -135,19 +136,44 @@ export const MapPage: React.FC = () => {
     };
   }, [currentFarm]);
 
-  // Render Polygons for all fields in currentFarm
+  // 2. Manage Tile Layer (Satellite vs Streets with Zero Watermarks/No API key)
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
 
-    // Remove existing field polygons
+    if (baseTileLayerRef.current) {
+      baseTileLayerRef.current.remove();
+    }
+
+    if (mapLayerType === 'satellite') {
+      baseTileLayerRef.current = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        {
+          attribution: 'Tiles &copy; Esri &mdash; Source: Esri, USDA, USGS',
+          maxZoom: 19
+        }
+      ).addTo(map);
+    } else {
+      baseTileLayerRef.current = L.tileLayer(
+        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        {
+          attribution: '&copy; OpenStreetMap contributors',
+          maxZoom: 19
+        }
+      ).addTo(map);
+    }
+  }, [mapLayerType]);
+
+  // 3. Render Field Polygons
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
     Object.values(polygonLayersRef.current).forEach(layer => layer.remove());
     polygonLayersRef.current = {};
 
     currentFarm.fields.forEach(field => {
       if (!field.boundary || field.boundary.length < 3) return;
-
-      // In edit mode, do not render static polygon for field being edited
       if (editorMode === 'edit' && field.id === selectedFieldId) return;
 
       const latlngs: L.LatLngExpression[] = field.boundary.map(p => [p.lat, p.lng]);
@@ -158,21 +184,22 @@ export const MapPage: React.FC = () => {
           ? '#F59E0B'
           : field.status === 'Critical'
           ? '#EF4444'
-          : '#64748B';
+          : '#3B82F6';
+
+      const isCurrent = field.id === selectedFieldId;
 
       const polygon = L.polygon(latlngs, {
-        color: color,
-        weight: field.id === currentField?.id ? 4 : 2,
+        color: isCurrent ? '#FFFFFF' : color,
+        weight: isCurrent ? 4 : 2,
         fillColor: color,
-        fillOpacity: field.id === currentField?.id ? 0.35 : 0.2,
-        dashArray: field.id === currentField?.id ? '0' : '4, 4'
+        fillOpacity: isCurrent ? 0.45 : 0.25,
+        dashArray: isCurrent ? '0' : '4, 4'
       }).addTo(map);
 
-      // Section 34: Click polygon to view details & open field
       polygon.bindPopup(`
         <div style="font-family: Inter, sans-serif; padding: 4px; min-width: 170px;">
           <div style="font-size: 10px; font-weight: 800; color: ${color}; text-transform: uppercase;">
-            ${field.status} • ${field.healthPercentage !== null ? `${field.healthPercentage}% Health` : 'No health data'}
+            ${field.status} • ${field.healthPercentage !== null ? `${field.healthPercentage}% Health` : 'Active'}
           </div>
           <h4 style="font-size: 14px; font-weight: 800; margin: 3px 0; color: #0F172A;">
             ${field.name}
@@ -183,12 +210,12 @@ export const MapPage: React.FC = () => {
           </p>
           <button
             id="popup-select-${field.id}"
-            style="background: #047857; color: white; border: none; border-radius: 8px; padding: 5px 10px; font-size: 11px; font-weight: bold; cursor: pointer; width: 100%;"
+            style="background: #047857; color: white; border: none; border-radius: 8px; padding: 6px 10px; font-size: 11px; font-weight: bold; cursor: pointer; width: 100%;"
           >
-            Select Field
+            Select & Inspect
           </button>
         </div>
-      `, { className: 'custom-farm-popup' });
+      `);
 
       polygon.on('popupopen', () => {
         const btn = document.getElementById(`popup-select-${field.id}`);
@@ -196,16 +223,16 @@ export const MapPage: React.FC = () => {
           btn.onclick = () => {
             selectField(field.id);
             setSelectedFieldId(field.id);
-            showToast('Field Selected', `${field.name} is now the active focus.`, 'info');
+            showToast('Field Selected', `${field.name} (${field.crop})`, 'info');
           };
         }
       });
 
       polygonLayersRef.current[field.id] = polygon;
     });
-  }, [currentFarm.fields, currentField, editorMode, selectedFieldId, selectField, showToast]);
+  }, [currentFarm.fields, editorMode, selectedFieldId, selectField, showToast]);
 
-  // Render Farmer GPS pin
+  // 4. Render Farmer GPS Pin
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
@@ -216,31 +243,22 @@ export const MapPage: React.FC = () => {
       const customIcon = L.divIcon({
         className: 'custom-farmer-pin',
         html: `
-          <div style="position: relative; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;">
-            <div style="position: absolute; width: 36px; height: 36px; border-radius: 50%; background: rgba(16, 185, 129, 0.35); animation: agro-pulse 2s infinite;"></div>
-            <div style="width: 22px; height: 22px; border-radius: 50%; background: #047857; border: 3px solid #FFFFFF; box-shadow: 0 4px 10px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;">
+          <div style="position: relative; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;">
+            <div style="position: absolute; width: 34px; height: 34px; border-radius: 50%; background: rgba(16, 185, 129, 0.4); animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+            <div style="width: 20px; height: 20px; border-radius: 50%; background: #047857; border: 3px solid #FFFFFF; box-shadow: 0 4px 10px rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center;">
               <div style="width: 6px; height: 6px; border-radius: 50%; background: #FFFFFF;"></div>
             </div>
           </div>
         `,
-        iconSize: [36, 36],
-        iconAnchor: [18, 18]
+        iconSize: [34, 34],
+        iconAnchor: [17, 17]
       });
 
       const marker = L.marker([currentGps.lat, currentGps.lng], {
         icon: customIcon,
         draggable: true,
-        title: 'Drag me to test real-time geo-fencing!'
+        title: 'Drag to test geofencing'
       }).addTo(map);
-
-      marker.bindPopup(`
-        <div style="font-family: Inter, sans-serif; font-size: 12px; font-weight: bold; color: #047857;">
-          🌾 Farmer Location<br/>
-          <span style="font-size: 10px; color: #64748B; font-weight: normal;">
-            Drag to simulate movement between fields!
-          </span>
-        </div>
-      `);
 
       marker.on('dragend', () => {
         const pos = marker.getLatLng();
@@ -251,46 +269,42 @@ export const MapPage: React.FC = () => {
     }
   }, [currentGps, setCurrentGps]);
 
-  // Interactive Polygon Editor: Render active polygon & vertex markers
+  // 5. Interactive Vertex Handles for Edit/Draw Mode
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
 
-    // Clear active polygon
     if (activeDrawPolygonRef.current) {
       activeDrawPolygonRef.current.remove();
       activeDrawPolygonRef.current = null;
     }
 
-    // Clear vertex markers
     if (vertexMarkersGroupRef.current) {
       vertexMarkersGroupRef.current.clearLayers();
     }
 
     if (editorMode === 'view' || activePoints.length === 0) return;
 
-    // Render active preview polygon
     if (activePoints.length >= 3) {
       const poly = L.polygon(
         activePoints.map(p => [p.lat, p.lng]),
         {
-          color: '#2563EB',
+          color: '#38BDF8',
           weight: 3,
           dashArray: '6, 6',
-          fillColor: '#3B82F6',
-          fillOpacity: 0.3
+          fillColor: '#0284C7',
+          fillOpacity: 0.35
         }
       ).addTo(map);
       activeDrawPolygonRef.current = poly;
     } else if (activePoints.length === 2) {
       const poly = L.polyline(
         activePoints.map(p => [p.lat, p.lng]),
-        { color: '#2563EB', weight: 3, dashArray: '4, 4' }
+        { color: '#38BDF8', weight: 3, dashArray: '4, 4' }
       ).addTo(map) as unknown as L.Polygon;
       activeDrawPolygonRef.current = poly;
     }
 
-    // Render Draggable Vertex Markers on EVERY point (Sections 5, 6, 7, 8)
     activePoints.forEach((point, index) => {
       const isSelected = selectedVertexIndex === index;
 
@@ -298,25 +312,25 @@ export const MapPage: React.FC = () => {
         className: `vertex-handle-${index}`,
         html: `
           <div style="
-            width: ${isSelected ? '22px' : '16px'};
-            height: ${isSelected ? '22px' : '16px'};
-            background: ${isSelected ? '#EF4444' : '#2563EB'};
+            width: ${isSelected ? '24px' : '18px'};
+            height: ${isSelected ? '24px' : '18px'};
+            background: ${isSelected ? '#EF4444' : '#0284C7'};
             border: 3px solid #FFFFFF;
             border-radius: 50%;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+            box-shadow: 0 3px 8px rgba(0,0,0,0.45);
             cursor: grab;
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
-            font-size: 8px;
+            font-size: 9px;
             font-weight: 800;
           ">
             ${index + 1}
           </div>
         `,
-        iconSize: [isSelected ? 22 : 16, isSelected ? 22 : 16],
-        iconAnchor: [isSelected ? 11 : 8, isSelected ? 11 : 8]
+        iconSize: [isSelected ? 24 : 18, isSelected ? 24 : 18],
+        iconAnchor: [isSelected ? 12 : 9, isSelected ? 12 : 9]
       });
 
       const vertexMarker = L.marker([point.lat, point.lng], {
@@ -324,16 +338,13 @@ export const MapPage: React.FC = () => {
         draggable: true
       }).addTo(vertexMarkersGroupRef.current!);
 
-      // Click vertex to select & inspect (Section 6)
       vertexMarker.on('click', (e) => {
         L.DomEvent.stopPropagation(e);
         setSelectedVertexIndex(index);
       });
 
-      // Real-time dragging of vertex (Section 8)
       vertexMarker.on('drag', () => {
         const newPos = vertexMarker.getLatLng();
-        // Update polygon in real time
         const updated = [...activePoints];
         updated[index] = { lat: newPos.lat, lng: newPos.lng };
         if (activeDrawPolygonRef.current) {
@@ -351,7 +362,7 @@ export const MapPage: React.FC = () => {
     });
   }, [activePoints, editorMode, selectedVertexIndex, pushHistory]);
 
-  // Click on map to add points during 'draw' mode
+  // 6. Map Click in Draw Mode
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
@@ -368,10 +379,10 @@ export const MapPage: React.FC = () => {
     };
   }, [editorMode, activePoints, pushHistory]);
 
-  // Start Editing Boundary for a Field
+  // Start Edit Boundary
   const handleStartEdit = (field: Field) => {
     if (!field.boundary || field.boundary.length === 0) {
-      showToast('No Boundary', `Field ${field.name} has no boundary. Switching to Draw mode.`, 'info');
+      showToast('No Existing Points', `Switching to Draw mode to create boundary for ${field.name}.`, 'info');
       handleStartDraw(field.id);
       return;
     }
@@ -383,13 +394,12 @@ export const MapPage: React.FC = () => {
     setEditorMode('edit');
     setHasUnsavedChanges(false);
 
-    // Zoom to field
     if (mapInstanceRef.current && field.center) {
       mapInstanceRef.current.flyTo([field.center.lat, field.center.lng], 18);
     }
   };
 
-  // Start Drawing from Scratch
+  // Start Drawing Boundary
   const handleStartDraw = (fieldId: string) => {
     setSelectedFieldId(fieldId);
     setActivePoints([]);
@@ -398,33 +408,21 @@ export const MapPage: React.FC = () => {
     setSelectedVertexIndex(null);
     setEditorMode('draw');
     setHasUnsavedChanges(false);
-    showToast('Draw Mode Active', 'Click anywhere on the map to place boundary points.', 'info');
+    showToast('Draw Mode Active', 'Click directly on the map to place boundary corner vertices.', 'info');
   };
 
-  // Delete Individual Point (Section 6)
-  const handleDeleteSelectedPoint = () => {
-    if (selectedVertexIndex === null) return;
-    if (activePoints.length <= 3) {
-      showToast('Minimum Points Required', 'A field polygon boundary must have at least 3 vertices.', 'warning');
+  // Add Vertex Midpoint
+  const handleAddPointBetween = () => {
+    if (activePoints.length < 2) {
+      showToast('Click Map', 'Click anywhere on the map to add vertices.', 'info');
       return;
     }
-
-    const updated = activePoints.filter((_, idx) => idx !== selectedVertexIndex);
-    pushHistory(updated);
-    setSelectedVertexIndex(null);
-    showToast('Point Deleted', `Vertex #${selectedVertexIndex + 1} removed.`, 'info');
-  };
-
-  // Add Point between points (Section 7)
-  const handleAddPointBetween = () => {
-    if (activePoints.length < 2) return;
     const baseIndex = selectedVertexIndex !== null ? selectedVertexIndex : activePoints.length - 1;
     const nextIndex = (baseIndex + 1) % activePoints.length;
 
     const p1 = activePoints[baseIndex];
     const p2 = activePoints[nextIndex];
 
-    // Midpoint
     const midPoint: LatLng = {
       lat: (p1.lat + p2.lat) / 2,
       lng: (p1.lng + p2.lng) / 2
@@ -434,23 +432,37 @@ export const MapPage: React.FC = () => {
     updated.splice(baseIndex + 1, 0, midPoint);
     pushHistory(updated);
     setSelectedVertexIndex(baseIndex + 1);
-    showToast('Point Added', `New draggable vertex added between Point ${baseIndex + 1} and ${nextIndex + 1}.`, 'success');
+    showToast('Point Added', `Added vertex between #${baseIndex + 1} and #${nextIndex + 1}. Drag to adjust.`, 'success');
   };
 
-  // Save Boundary (Section 8)
+  // Delete Vertex
+  const handleDeleteSelectedPoint = () => {
+    if (selectedVertexIndex === null) return;
+    if (activePoints.length <= 3) {
+      showToast('Minimum 3 Points', 'A polygon boundary requires at least 3 vertices.', 'warning');
+      return;
+    }
+
+    const updated = activePoints.filter((_, idx) => idx !== selectedVertexIndex);
+    pushHistory(updated);
+    setSelectedVertexIndex(null);
+    showToast('Point Deleted', `Vertex removed.`, 'info');
+  };
+
+  // Save Boundary
   const handleSaveBoundary = () => {
     if (activePoints.length < 3) {
-      showToast('Incomplete Boundary', 'Please create at least 3 points to save a valid field boundary.', 'warning');
+      showToast('Incomplete Polygon', 'Please place at least 3 points to enclose a parcel.', 'warning');
       return;
     }
 
     updateFieldBoundary(selectedFieldId, activePoints);
     setEditorMode('view');
     setHasUnsavedChanges(false);
-    showToast('Field boundary updated successfully.', `${formatArea(calculatedAcres)} geo-fence saved.`, 'success');
+    showToast('Boundary Saved', `${activeField?.name}: ${formatArea(calculatedAcres)} geofence updated.`, 'success');
   };
 
-  // Cancel Changes (Section 8)
+  // Cancel Editing
   const handleCancel = () => {
     setEditorMode('view');
     setActivePoints([]);
@@ -460,252 +472,359 @@ export const MapPage: React.FC = () => {
     setHasUnsavedChanges(false);
   };
 
+  // FlyTo field
+  const handleFlyToField = (field: Field) => {
+    selectField(field.id);
+    setSelectedFieldId(field.id);
+    if (mapInstanceRef.current && field.center) {
+      mapInstanceRef.current.flyTo([field.center.lat, field.center.lng], 18);
+    }
+  };
+
+  // Add New Field Submission
+  const handleCreateFieldSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newFieldName.trim()) return;
+
+    const centerPoint = currentGps || currentFarm.center;
+
+    const created = addField(currentFarm.id, {
+      name: newFieldName.trim(),
+      crop: newFieldCrop,
+      areaAcres: 0,
+      plantingDate: new Date().toISOString().split('T')[0],
+      healthPercentage: null,
+      healthBreakdown: null,
+      status: 'Unanalyzed',
+      boundary: [],
+      center: centerPoint
+    });
+
+    setIsAddFieldModalOpen(false);
+    setNewFieldName('');
+    setSelectedFieldId(created.id);
+    selectField(created.id);
+    handleStartDraw(created.id);
+  };
+
   return (
-    <div className="space-y-4 max-w-7xl mx-auto pb-12">
-      {/* Top Header & Mode Bar */}
-      <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-forest-700 text-xs font-bold uppercase tracking-wider">
-            <Compass className="w-4 h-4" />
-            <span>Interactive Farm Map & Geo-Fence Studio</span>
+    <div className="flex-1 flex flex-col min-h-0 w-full h-full relative overflow-hidden rounded-2xl border border-slate-200 shadow-sm bg-slate-900">
+      {/* 1. TOP DOCKED COMMAND BAR - Always Visible, Zero Document Scrolling */}
+      <div className="shrink-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/90 px-3 sm:px-4 py-2.5 flex flex-wrap items-center justify-between gap-2.5">
+        {/* Left: Parcel Switcher & Status */}
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-1.5 bg-forest-50 border border-forest-200/80 px-2.5 py-1.5 rounded-xl shrink-0">
+            <MapPin className="w-4 h-4 text-forest-700" />
+            <span className="text-xs font-black text-forest-900 hidden sm:inline">Parcel:</span>
           </div>
-          <h1 className="text-xl sm:text-2xl font-black text-slate-900 mt-0.5">
-            Precision Field Boundaries
-          </h1>
-          <p className="text-xs text-slate-500">
-            {editorMode === 'view'
-              ? 'Select a field to inspect its geo-fence, or enter edit mode to adjust boundary points.'
-              : editorMode === 'edit'
-              ? 'Drag any point handle to adjust the boundary in real-time, or select a point to delete/add.'
-              : 'Click on the map to drop boundary points.'}
-          </p>
+
+          <div className="relative shrink-0">
+            <select
+              value={selectedFieldId}
+              onChange={e => {
+                const target = currentFarm.fields.find(f => f.id === e.target.value);
+                if (target) handleFlyToField(target);
+              }}
+              className="text-xs font-bold pl-2.5 pr-7 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-forest-500 shadow-xs cursor-pointer appearance-none"
+            >
+              {currentFarm.fields.map(f => (
+                <option key={f.id} value={f.id}>
+                  {f.name} ({f.crop} • {f.areaAcres} ac)
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-2.5 pointer-events-none" />
+          </div>
+
+          <span className="hidden md:inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+            <span
+              className={`w-2 h-2 rounded-full ${
+                activeField?.status === 'Healthy'
+                  ? 'bg-emerald-500'
+                  : activeField?.status === 'At Risk'
+                  ? 'bg-amber-500'
+                  : activeField?.status === 'Critical'
+                  ? 'bg-rose-500'
+                  : 'bg-blue-500'
+              }`}
+            />
+            {activeField?.status || 'Active'}
+          </span>
         </div>
 
-        {/* Action Controls & Mode Switcher */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Unit Toggle (Section 33) */}
-          <div className="flex items-center bg-slate-100 p-1 rounded-xl text-xs font-bold text-slate-600">
-            <button
-              onClick={() => setAreaUnit('acres')}
-              className={`px-2.5 py-1 rounded-lg transition-all ${areaUnit === 'acres' ? 'bg-white text-slate-900 shadow-xs' : ''}`}
-            >
-              Acres
-            </button>
-            <button
-              onClick={() => setAreaUnit('hectares')}
-              className={`px-2.5 py-1 rounded-lg transition-all ${areaUnit === 'hectares' ? 'bg-white text-slate-900 shadow-xs' : ''}`}
-            >
-              Hectares
-            </button>
-            <button
-              onClick={() => setAreaUnit('sqm')}
-              className={`px-2.5 py-1 rounded-lg transition-all ${areaUnit === 'sqm' ? 'bg-white text-slate-900 shadow-xs' : ''}`}
-            >
-              m²
-            </button>
-          </div>
-
-          {/* Locate Me Button (Section 35) */}
-          <button
-            onClick={locateMe}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-forest-50 hover:bg-forest-100 text-forest-800 font-bold text-xs border border-forest-200 transition-colors"
-            title="Detect your current GPS location"
-          >
-            <Navigation className="w-3.5 h-3.5 text-forest-600" />
-            <span>Locate Me</span>
-          </button>
-
+        {/* Center/Action CTA Buttons - Prominent, High-Contrast */}
+        <div className="flex items-center gap-2">
           {editorMode === 'view' ? (
-            <div className="flex items-center gap-2">
-              <select
-                value={selectedFieldId}
-                onChange={e => {
-                  setSelectedFieldId(e.target.value);
-                  selectField(e.target.value);
-                }}
-                className="text-xs font-bold px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none"
-              >
-                {currentFarm.fields.map(f => (
-                  <option key={f.id} value={f.id}>
-                    {f.name} ({f.crop})
-                  </option>
-                ))}
-              </select>
-
-              {activeField && (
+            <>
+              {/* PRIMARY CTA: Edit Boundary */}
+              {activeField && activeField.boundary && activeField.boundary.length >= 3 ? (
                 <button
                   onClick={() => handleStartEdit(activeField)}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-forest-600 hover:bg-forest-700 text-white text-xs font-bold shadow-md transition-colors"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-black shadow-sm transition-all hover:scale-[1.02]"
+                  title="Modify vertex points for this parcel"
                 >
                   <Edit3 className="w-4 h-4" />
                   <span>Edit Boundary</span>
                 </button>
-              )}
-
-              {activeField && (!activeField.boundary || activeField.boundary.length === 0) && (
+              ) : (
                 <button
-                  onClick={() => handleStartDraw(activeField.id)}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md transition-colors"
+                  onClick={() => activeField && handleStartDraw(activeField.id)}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-black shadow-sm transition-all hover:scale-[1.02]"
+                  title="Draw perimeter boundary for this field"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Draw Boundary</span>
                 </button>
               )}
-            </div>
+
+              {/* SECONDARY CTA: + Add Field */}
+              <button
+                onClick={() => setIsAddFieldModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-forest-50 hover:bg-forest-100 text-forest-800 border border-forest-200 text-xs font-bold transition-colors"
+                title="Register a new field on this farm"
+              >
+                <Plus className="w-3.5 h-3.5 text-forest-700" />
+                <span>+ Add Field</span>
+              </button>
+            </>
           ) : (
-            /* Editing Toolbar (Section 32) */
-            <div className="flex items-center flex-wrap gap-1.5 bg-blue-50 border border-blue-200 p-1.5 rounded-2xl">
-              <button
-                onClick={handleUndo}
-                disabled={historyIndex <= 0}
-                className="p-1.5 rounded-lg bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40"
-                title="Undo"
-              >
-                <Undo2 className="w-4 h-4" />
-              </button>
-              <button
-                onClick={handleRedo}
-                disabled={historyIndex >= history.length - 1}
-                className="p-1.5 rounded-lg bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40"
-                title="Redo"
-              >
-                <Redo2 className="w-4 h-4" />
-              </button>
+            /* Editing State Indicator Pill */
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-xs font-bold animate-pulse">
+              <Crosshair className="w-3.5 h-3.5 text-blue-600" />
+              <span>{editorMode === 'edit' ? 'Editing Boundary' : 'Drawing New Boundary'}</span>
+            </div>
+          )}
+        </div>
 
-              <div className="h-5 w-px bg-blue-200 mx-1" />
+        {/* Right Utility Toggles: Map Layer, Units, Locate Me */}
+        <div className="flex items-center gap-2">
+          {/* Satellite vs Streets Toggle (Zero Watermark) */}
+          <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-[11px] font-bold text-slate-600">
+            <button
+              onClick={() => setMapLayerType('satellite')}
+              className={`px-2.5 py-1 rounded-lg transition-all ${
+                mapLayerType === 'satellite'
+                  ? 'bg-white text-forest-800 shadow-xs font-black'
+                  : 'hover:text-slate-900'
+              }`}
+            >
+              Satellite
+            </button>
+            <button
+              onClick={() => setMapLayerType('streets')}
+              className={`px-2.5 py-1 rounded-lg transition-all ${
+                mapLayerType === 'streets'
+                  ? 'bg-white text-forest-800 shadow-xs font-black'
+                  : 'hover:text-slate-900'
+              }`}
+            >
+              Street
+            </button>
+          </div>
 
+          {/* Area Units */}
+          <div className="hidden sm:flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-[11px] font-semibold text-slate-600">
+            <button
+              onClick={() => setAreaUnit('acres')}
+              className={`px-2 py-1 rounded-lg transition-all ${
+                areaUnit === 'acres' ? 'bg-white text-slate-900 font-bold shadow-xs' : ''
+              }`}
+            >
+              Acres
+            </button>
+            <button
+              onClick={() => setAreaUnit('hectares')}
+              className={`px-2 py-1 rounded-lg transition-all ${
+                areaUnit === 'hectares' ? 'bg-white text-slate-900 font-bold shadow-xs' : ''
+              }`}
+            >
+              Ha
+            </button>
+          </div>
+
+          {/* Locate Me */}
+          <button
+            onClick={locateMe}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 shadow-xs transition-colors"
+            title="Snap to farmer GPS location"
+          >
+            <Navigation className="w-3.5 h-3.5 text-forest-700" />
+            <span className="hidden md:inline">Locate Me</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 2. FLOATING EDITING COMMAND DOCK - Appears at Top-Center When in Edit/Draw Mode */}
+      {editorMode !== 'view' && (
+        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-40 w-[95%] max-w-2xl pointer-events-auto">
+          <div className="bg-slate-900/95 backdrop-blur-md text-white px-4 py-2.5 rounded-2xl shadow-2xl border border-slate-700/80 flex flex-wrap items-center justify-between gap-3">
+            {/* Live Stats */}
+            <div className="flex items-center gap-3 text-xs">
+              <span className="font-bold text-sky-400">
+                {activePoints.length} Vertices
+              </span>
+              <span className="text-slate-500">•</span>
+              <span className="font-bold text-emerald-400">
+                {formatArea(calculatedAcres)}
+              </span>
+              {hasUnsavedChanges && (
+                <span className="hidden sm:inline-block text-[10px] text-amber-300 font-semibold bg-amber-950/60 px-2 py-0.5 rounded-md border border-amber-500/40">
+                  Unsaved
+                </span>
+              )}
+            </div>
+
+            {/* In-Editor Controls */}
+            <div className="flex items-center flex-wrap gap-2">
+              {/* Undo / Redo */}
+              <div className="flex items-center gap-1 bg-slate-800 rounded-xl p-1 border border-slate-700">
+                <button
+                  onClick={handleUndo}
+                  disabled={historyIndex <= 0}
+                  className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700 disabled:opacity-30"
+                  title="Undo point adjustment"
+                >
+                  <Undo2 className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={handleRedo}
+                  disabled={historyIndex >= history.length - 1}
+                  className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700 disabled:opacity-30"
+                  title="Redo point adjustment"
+                >
+                  <Redo2 className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Add Point */}
               <button
                 onClick={handleAddPointBetween}
-                className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg bg-white text-blue-800 hover:bg-blue-100 border border-blue-200"
-                title="Add vertex point on selected edge"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white font-bold text-xs shadow-xs transition-colors"
+                title="Insert a midpoint vertex between selected point"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add Point</span>
               </button>
 
+              {/* Delete Point (When a vertex is clicked) */}
               {selectedVertexIndex !== null && (
                 <button
                   onClick={handleDeleteSelectedPoint}
                   disabled={activePoints.length <= 3}
-                  className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 disabled:opacity-40"
-                  title="Delete selected vertex"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-xs transition-colors disabled:opacity-40"
+                  title="Remove selected vertex"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>Delete Point #{selectedVertexIndex + 1}</span>
                 </button>
               )}
 
-              <div className="h-5 w-px bg-blue-200 mx-1" />
-
+              {/* Save Boundary Button */}
               <button
                 onClick={handleSaveBoundary}
                 disabled={activePoints.length < 3}
-                className="flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-sm disabled:opacity-40"
+                className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-slate-950 font-black text-xs shadow-md transition-all disabled:opacity-40"
               >
-                <Check className="w-3.5 h-3.5" />
+                <Check className="w-4 h-4" />
                 <span>SAVE</span>
               </button>
 
+              {/* Cancel Button */}
               <button
                 onClick={handleCancel}
-                className="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-500 hover:text-slate-800"
+                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-xs transition-colors"
               >
-                CANCEL
+                Cancel
               </button>
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* Unsaved Changes Banner (Section 8) */}
-      {hasUnsavedChanges && (
-        <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-between text-xs text-amber-900 font-medium">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping" />
-            <span>Unsaved boundary changes ({activePoints.length} vertices • {formatArea(calculatedAcres)})</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleSaveBoundary}
-              className="px-3 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold"
-            >
-              Save Boundary
-            </button>
           </div>
         </div>
       )}
 
-      {/* Map Canvas */}
-      <div className="relative bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-md h-[650px]">
+      {/* 3. FULL MAP CANVAS - Fills Viewport */}
+      <div className="flex-1 w-full h-full relative min-h-0">
         <div ref={mapContainerRef} className="w-full h-full z-10" />
 
-        {/* Live Geo-Fence Telemetry HUD (Section 35) */}
-        <div className="absolute top-4 left-4 z-20 max-w-sm pointer-events-auto">
-          <div className="bg-white/95 backdrop-blur-md rounded-2xl p-4 border border-slate-200 shadow-xl space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                Live Geofence Telemetry
+        {/* FLOATING HUD: Live Geofence Telemetry (Collapsible) */}
+        <div className="absolute top-3 left-3 z-20 max-w-xs sm:max-w-sm pointer-events-auto transition-all">
+          <div className="bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200/90 shadow-xl overflow-hidden">
+            <div className="px-3.5 py-2.5 flex items-center justify-between border-b border-slate-100 bg-slate-50/80">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                GPS Geofence Status
               </span>
-              <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-                Active GPS
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Active
+                </span>
+                <button
+                  onClick={() => setIsHudCollapsed(!isHudCollapsed)}
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
+                  title={isHudCollapsed ? 'Expand HUD' : 'Collapse HUD'}
+                >
+                  {isHudCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+                </button>
+              </div>
             </div>
 
-            {currentField ? (
-              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950">
-                <p className="text-xs font-extrabold">You are inside {currentField.name}</p>
-                <p className="text-[11px] text-emerald-800 font-medium">
-                  Crop: {currentField.crop} • {formatArea(currentField.areaAcres)}
-                </p>
-              </div>
-            ) : (
-              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-950">
-                <p className="text-xs font-extrabold">You are outside registered fields.</p>
-                <p className="text-[11px] text-amber-800">
-                  No registered field found at your current location.
-                </p>
+            {!isHudCollapsed && (
+              <div className="p-3.5 space-y-2.5">
+                {currentField ? (
+                  <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200/80 text-emerald-950">
+                    <p className="text-xs font-black">Inside {currentField.name}</p>
+                    <p className="text-[11px] text-emerald-800 font-semibold mt-0.5">
+                      {currentField.crop} • {formatArea(currentField.areaAcres)}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200/80 text-amber-950">
+                    <p className="text-xs font-black">Outside Defined Parcel Boundaries</p>
+                    <p className="text-[11px] text-amber-800 mt-0.5">
+                      Farmer pin is not inside registered parcel coordinates.
+                    </p>
+                  </div>
+                )}
+
+                <div className="text-[11px] text-slate-500 flex items-center justify-between font-mono pt-1 border-t border-slate-100">
+                  <span>Coordinates:</span>
+                  <span className="font-bold text-slate-800">
+                    {currentGps.lat.toFixed(4)}° N, {currentGps.lng.toFixed(4)}° E
+                  </span>
+                </div>
               </div>
             )}
-
-            <div className="text-[11px] text-slate-500 flex justify-between pt-1">
-              <span>GPS Coordinates:</span>
-              <span className="font-mono font-bold text-slate-700">
-                {currentGps.lat.toFixed(5)}° N, {currentGps.lng.toFixed(5)}° E
-              </span>
-            </div>
           </div>
         </div>
 
-        {/* Vertex Point Inspector Box when a vertex is selected (Section 32) */}
+        {/* FLOATING VERTEX INSPECTOR (When a Point is Selected in Edit Mode) */}
         {selectedVertexIndex !== null && activePoints[selectedVertexIndex] && (
-          <div className="absolute top-4 right-4 z-20 max-w-xs pointer-events-auto">
-            <div className="bg-white/95 backdrop-blur-md rounded-2xl p-4 border border-blue-200 shadow-xl space-y-2 text-xs">
+          <div className="absolute top-3 right-3 z-20 max-w-xs pointer-events-auto">
+            <div className="bg-slate-900/95 backdrop-blur-md text-white rounded-2xl p-3.5 border border-slate-700 shadow-xl space-y-2 text-xs">
               <div className="flex items-center justify-between">
-                <span className="font-extrabold text-blue-900 uppercase tracking-wider">
+                <span className="font-black text-sky-400">
                   Vertex Point #{selectedVertexIndex + 1}
                 </span>
                 <button
                   onClick={() => setSelectedVertexIndex(null)}
-                  className="p-1 rounded text-slate-400 hover:text-slate-600"
+                  className="p-1 rounded text-slate-400 hover:text-white"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-3.5 h-3.5" />
                 </button>
               </div>
 
-              <div className="space-y-1 font-mono text-[11px] text-slate-700 bg-slate-50 p-2 rounded-xl">
+              <div className="font-mono text-[11px] text-slate-300 bg-slate-800/80 p-2 rounded-xl space-y-0.5">
                 <div>Lat: {activePoints[selectedVertexIndex].lat.toFixed(6)}°</div>
                 <div>Lng: {activePoints[selectedVertexIndex].lng.toFixed(6)}°</div>
               </div>
 
-              <p className="text-[10px] text-slate-500">
-                Drag this handle directly on the map to adjust the boundary.
+              <p className="text-[10px] text-slate-400 leading-tight">
+                Drag point handle directly on map to reshape field perimeter.
               </p>
 
               <button
                 onClick={handleDeleteSelectedPoint}
                 disabled={activePoints.length <= 3}
-                className="w-full py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition-colors flex items-center justify-center gap-1 disabled:opacity-40"
+                className="w-full py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition-colors flex items-center justify-center gap-1 disabled:opacity-40"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Delete Point</span>
@@ -714,39 +833,117 @@ export const MapPage: React.FC = () => {
           </div>
         )}
 
-        {/* Bottom Legend */}
-        <div className="absolute bottom-4 left-4 z-20 pointer-events-auto hidden sm:block">
-          <div className="bg-white/95 backdrop-blur-md rounded-2xl p-3 border border-slate-200 shadow-xl flex items-center gap-4 text-xs">
-            <span className="font-bold text-slate-700">Parcel Boundaries:</span>
-            {currentFarm.fields.map(f => (
-              <button
-                key={f.id}
-                onClick={() => {
-                  selectField(f.id);
-                  setSelectedFieldId(f.id);
-                  if (mapInstanceRef.current && f.center) {
-                    mapInstanceRef.current.flyTo([f.center.lat, f.center.lng], 18);
-                  }
-                }}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium transition-colors"
-              >
-                <span
-                  className={`w-2 h-2 rounded-full ${
-                    f.status === 'Healthy'
-                      ? 'bg-emerald-500'
-                      : f.status === 'At Risk'
-                      ? 'bg-amber-500'
-                      : f.status === 'Critical'
-                      ? 'bg-rose-500'
-                      : 'bg-slate-400'
+        {/* FLOATING BOTTOM BAR: Quick Field Selector Pills */}
+        <div className="absolute bottom-3 left-3 right-14 z-20 pointer-events-auto">
+          <div className="bg-white/90 backdrop-blur-md rounded-2xl p-2 border border-slate-200 shadow-lg flex items-center gap-2 overflow-x-auto scrollbar-none">
+            <span className="text-[10px] font-black uppercase text-slate-400 px-2 shrink-0">
+              Quick Focus:
+            </span>
+            {currentFarm.fields.map(f => {
+              const isCurrent = f.id === selectedFieldId;
+              return (
+                <button
+                  key={f.id}
+                  onClick={() => handleFlyToField(f)}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold shrink-0 transition-all ${
+                    isCurrent
+                      ? 'bg-forest-700 text-white shadow-xs'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                   }`}
-                />
-                <span>{f.name}</span>
-              </button>
-            ))}
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      f.status === 'Healthy'
+                        ? 'bg-emerald-400'
+                        : f.status === 'At Risk'
+                        ? 'bg-amber-400'
+                        : f.status === 'Critical'
+                        ? 'bg-rose-400'
+                        : 'bg-blue-400'
+                    }`}
+                  />
+                  <span>{f.name}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
+
+      {/* 4. MODAL: REGISTER NEW FIELD & DRAW BOUNDARY */}
+      {isAddFieldModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-forest-100 text-forest-700 flex items-center justify-center">
+                  <Plus className="w-4 h-4" />
+                </div>
+                <h3 className="font-extrabold text-slate-900 text-base">Create New Parcel</h3>
+              </div>
+              <button
+                onClick={() => setIsAddFieldModalOpen(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateFieldSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Field / Parcel Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. North Guava Block"
+                  value={newFieldName}
+                  onChange={e => setNewFieldName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-forest-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Primary Crop
+                </label>
+                <select
+                  value={newFieldCrop}
+                  onChange={e => setNewFieldCrop(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-forest-500 focus:outline-none"
+                >
+                  <option value="Mango">Mango</option>
+                  <option value="Guava">Guava</option>
+                  <option value="Pomegranate">Pomegranate</option>
+                  <option value="Sapota">Sapota</option>
+                  <option value="Tomato">Tomato</option>
+                  <option value="Maize">Maize</option>
+                  <option value="Coconut">Coconut</option>
+                  <option value="Arecanut">Arecanut</option>
+                </select>
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddFieldModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-forest-700 hover:bg-forest-800 text-white text-xs font-bold shadow-md transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Start Drawing Boundary</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

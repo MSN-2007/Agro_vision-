@@ -47,7 +47,7 @@ export const WeatherPage: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 text-forest-700 text-xs font-bold uppercase tracking-wider">
             <CloudSun className="w-4 h-4" />
-            <span>Open-Meteo Agricultural Meteorological Network</span>
+            <span>{weather?.provider || 'Live Agricultural Meteorological Network'}</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">
             Field Weather Intelligence

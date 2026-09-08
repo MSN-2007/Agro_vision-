@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import {
   Farm,
   Field,
@@ -16,7 +16,9 @@ import {
   AssistantChatMessage,
   ActivityLogItem,
   ObservationSource,
-  TaskStatus
+  TaskStatus,
+  SupportedLanguage,
+  SUPPORTED_LANGUAGES
 } from '../types/agro';
 import {
   INITIAL_USER,
@@ -35,7 +37,21 @@ import {
 import { findContainingField, calculatePolygonAreaAcres } from '../services/geofence';
 import { speechService } from '../services/speechService';
 import { fetchFieldWeather } from '../services/weatherService';
+import { geminiService } from '../services/geminiService';
+import { parseVoiceTaskCommand, VoiceTaskResult } from '../services/voiceTaskService';
 import confetti from 'canvas-confetti';
+// ── Shared Backend API Services ──────────────────────────────────────────────
+import { farmService } from '../services/api/farmService';
+// fieldService available for future direct field mutations
+// import { fieldService } from '../services/api/fieldService';
+import { taskService } from '../services/api/taskService';
+import { observationService } from '../services/api/observationService';
+import { mediaService } from '../services/api/mediaService';
+import { reminderService } from '../services/api/reminderService';
+import { activityApiService } from '../services/api/activityApiService';
+import { syncService } from '../services/api/syncService';
+
+export type SyncStatus = 'connected' | 'disconnected' | 'reconnecting';
 
 export interface ToastMessage {
   id: string;
@@ -48,6 +64,8 @@ export interface ToastMessage {
 interface FarmContextType {
   user: FarmerUser;
   updateUser: (updates: Partial<FarmerUser>) => void;
+  currentLanguage: SupportedLanguage;
+  setLanguage: (lang: SupportedLanguage) => void;
   farms: Farm[];
   currentFarm: Farm;
   currentField: Field | null;
@@ -95,6 +113,8 @@ interface FarmContextType {
   addTask: (title: string, fieldId: string | null, dueDate: string, notes?: string, voiceCreated?: boolean) => void;
   toggleTaskStatus: (id: string) => void;
   deleteTask: (id: string) => void;
+  updateTask: (id: string, updates: Partial<FarmTask>) => void;
+  executeVoiceTaskCommand: (transcript: string) => VoiceTaskResult;
   reminders: FarmReminder[];
   getFieldReminders: (fieldId?: string | null) => FarmReminder[];
   addReminder: (title: string, timeStr: string, fieldId: string | null) => void;
@@ -124,6 +144,7 @@ interface FarmContextType {
 
   // Chat & AI Assistant
   chatMessages: AssistantChatMessage[];
+  isAssistantThinking: boolean;
   sendAssistantMessage: (userText: string) => void;
   clearChat: () => void;
 
@@ -138,6 +159,9 @@ interface FarmContextType {
   // Morning Briefing Modal
   isBriefingModalOpen: boolean;
   setIsBriefingModalOpen: (open: boolean) => void;
+
+  // Backend Sync Status
+  syncStatus: SyncStatus;
 
   // Demo Mode triggers
   simulateGpsMovement: (targetField: 'mango' | 'tomato' | 'strawberry' | 'outside') => void;
@@ -155,6 +179,40 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const saved = localStorage.getItem('agrovision_user');
     return saved ? JSON.parse(saved) : INITIAL_USER;
   });
+
+  const [currentLanguage, setCurrentLanguageState] = useState<SupportedLanguage>(() => {
+    const saved = localStorage.getItem('agrovision_lang') as SupportedLanguage;
+    return saved && ['en', 'hi', 'mr', 'te'].includes(saved)
+      ? saved
+      : (user.preferredLanguage || 'en');
+  });
+
+  useEffect(() => {
+    speechService.setLanguage(currentLanguage);
+  }, [currentLanguage]);
+
+  const setLanguage = (lang: SupportedLanguage) => {
+    setCurrentLanguageState(lang);
+    localStorage.setItem('agrovision_lang', lang);
+    setUser(prev => ({ ...prev, preferredLanguage: lang }));
+    speechService.setLanguage(lang);
+
+    let greeting = 'Language switched to English. AgroVision Assistant is ready.';
+    let toastTitle = 'Language: English';
+    if (lang === 'mr') {
+      greeting = 'नमस्कार, भाषा मराठी निवडली आहे. ॲग्रोव्हिजन शेती सहाय्यक सज्ज आहे.';
+      toastTitle = 'भाषा: मराठी';
+    } else if (lang === 'hi') {
+      greeting = 'नमस्ते, भाषा हिन्दी चुनी गई है। एग्रोविज़न कृषि सहायक तैयार है।';
+      toastTitle = 'भाषा: हिन्दी';
+    } else if (lang === 'te') {
+      greeting = 'నమస్కారం, తెలుగు భాష ఎంపిక చేయబడింది. ఆగ్రోవిజన్ వ్యవసాయ అసిస్టెంట్ సిద్ధంగా ఉంది.';
+      toastTitle = 'భాష: తెలుగు';
+    }
+
+    showToast(toastTitle, greeting, 'info');
+    speechService.speak(greeting, lang);
+  };
 
   const [farms, setFarms] = useState<Farm[]>(() => {
     const saved = localStorage.getItem('agrovision_farms');
@@ -205,12 +263,178 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [wellBeing, setWellBeing] = useState<WellBeingMetric>(INITIAL_WELLBEING);
   const [notifications, setNotifications] = useState<FarmNotification[]>(INITIAL_NOTIFICATIONS);
   const [chatMessages, setChatMessages] = useState<AssistantChatMessage[]>(INITIAL_CHAT);
+  const [isAssistantThinking, setIsAssistantThinking] = useState<boolean>(false);
   const [activityLog, setActivityLog] = useState<ActivityLogItem[]>(INITIAL_ACTIVITY_LOG);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [isNotificationDrawerOpen, setIsNotificationDrawerOpen] = useState<boolean>(false);
   const [isBriefingModalOpen, setIsBriefingModalOpen] = useState<boolean>(false);
 
-  // Sync to localStorage
+  // ── Backend Sync Status ───────────────────────────────────────────────────
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('disconnected');
+  // Track if we already loaded data from the backend to avoid re-seeding
+  const backendLoadedRef = useRef(false);
+
+  // ── Initial Data Load from Shared Backend ────────────────────────────────
+  useEffect(() => {
+    if (backendLoadedRef.current) return;
+
+    const loadFromBackend = async () => {
+      try {
+        // Farms (contains fields)
+        const apiFarms = await farmService.getFarms().catch(() => null);
+        if (apiFarms && apiFarms.length > 0) {
+          setFarms(apiFarms);
+          localStorage.setItem('agrovision_farms', JSON.stringify(apiFarms));
+        }
+
+        // Tasks
+        const apiTasks = await taskService.getTasks().catch(() => null);
+        if (apiTasks && apiTasks.length > 0) {
+          setTasks(apiTasks);
+          localStorage.setItem('agrovision_tasks', JSON.stringify(apiTasks));
+        }
+
+        // Observations
+        const apiObs = await observationService.getObservations().catch(() => null);
+        if (apiObs && apiObs.length > 0) {
+          setObservations(apiObs);
+          localStorage.setItem('agrovision_obs', JSON.stringify(apiObs));
+        }
+
+        // Media
+        const apiMedia = await mediaService.getMedia().catch(() => null);
+        if (apiMedia && apiMedia.length > 0) {
+          setMediaItems(apiMedia);
+          localStorage.setItem('agrovision_media', JSON.stringify(apiMedia));
+        }
+
+        // Reminders
+        const apiReminders = await reminderService.getReminders().catch(() => null);
+        if (apiReminders && apiReminders.length > 0) {
+          setReminders(apiReminders);
+          localStorage.setItem('agrovision_reminders', JSON.stringify(apiReminders));
+        }
+
+        // Activity Log
+        const apiActivity = await activityApiService.getActivity().catch(() => null);
+        if (apiActivity && apiActivity.length > 0) {
+          setActivityLog(apiActivity);
+        }
+
+        backendLoadedRef.current = true;
+      } catch {
+        // Backend offline — local state (localStorage) is already loaded, continue gracefully
+      }
+    };
+
+    loadFromBackend();
+  }, []);
+
+  // ── Real-Time SSE Sync from Backend (Mobile / Raspberry Pi events) ───────
+  useEffect(() => {
+    const unsubStatus = syncService.onStatusChange(setSyncStatus);
+
+    const unsubEvents = syncService.onEvent((eventType, data) => {
+      const d = data as Record<string, unknown>;
+
+      switch (eventType) {
+        case 'TASK_CREATED': {
+          const task = data as unknown as FarmTask;
+          setTasks(prev => prev.some(t => t.id === task.id) ? prev : [task, ...prev]);
+          setNotifications(prev => [{
+            id: 'notif-' + Date.now(),
+            type: 'Task' as const,
+            title: `New task from ${String(d.source || 'device')}: ${task.title}`,
+            message: `Due: ${task.dueDate || 'Today'}`,
+            timestamp: 'Just now',
+            read: false,
+            fieldId: task.fieldId || undefined
+          }, ...prev]);
+          break;
+        }
+        case 'TASK_UPDATED': {
+          const task = data as unknown as FarmTask;
+          setTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...task } : t));
+          break;
+        }
+        case 'TASK_DELETED': {
+          const id = String(d.id || d.taskId || '');
+          if (id) setTasks(prev => prev.filter(t => t.id !== id));
+          break;
+        }
+        case 'OBSERVATION_CREATED': {
+          const obs = data as unknown as Observation;
+          setObservations(prev => prev.some(o => o.id === obs.id) ? prev : [obs, ...prev]);
+          const src = String(d.source || 'device');
+          setNotifications(prev => [{
+            id: 'notif-' + Date.now(),
+            type: 'Crop Problem' as const,
+            title: `Observation from ${src}: ${obs.title}`,
+            message: obs.notes?.substring(0, 80) || '',
+            timestamp: 'Just now',
+            read: false,
+            fieldId: obs.fieldId || undefined
+          }, ...prev]);
+          break;
+        }
+        case 'OBSERVATION_UPDATED': {
+          const obs = data as unknown as Observation;
+          setObservations(prev => prev.map(o => o.id === obs.id ? { ...o, ...obs } : o));
+          break;
+        }
+        case 'OBSERVATION_DELETED': {
+          const id = String(d.id || d.observationId || '');
+          if (id) setObservations(prev => prev.filter(o => o.id !== id));
+          break;
+        }
+        case 'MEDIA_CREATED': {
+          const item = data as unknown as MediaItem;
+          setMediaItems(prev => prev.some(m => m.id === item.id) ? prev : [item, ...prev]);
+          break;
+        }
+        case 'MEDIA_DELETED': {
+          const id = String(d.id || d.mediaId || '');
+          if (id) setMediaItems(prev => prev.filter(m => m.id !== id));
+          break;
+        }
+        case 'FARM_UPDATED':
+        case 'FARM_CREATED':
+        case 'FIELD_CREATED':
+        case 'FIELD_UPDATED':
+        case 'FIELD_DELETED': {
+          // Re-fetch farms on field/farm changes from other clients
+          farmService.getFarms().then(apiFarms => {
+            if (apiFarms && apiFarms.length > 0) setFarms(apiFarms);
+          }).catch(() => {});
+          break;
+        }
+        case 'DEVICE_STATUS_CHANGED': {
+          const dev = data as unknown as Partial<SmartGlassesDevice>;
+          if (dev) {
+            setDevice(prev => ({ ...prev, ...dev, connected: dev.connected ?? prev.connected }));
+          }
+          break;
+        }
+        case 'ACTIVITY_CREATED': {
+          const act = data as unknown as ActivityLogItem;
+          if (act) setActivityLog(prev => [act, ...prev].slice(0, 100));
+          break;
+        }
+        default:
+          break;
+      }
+    });
+
+    syncService.connect();
+
+    return () => {
+      unsubStatus();
+      unsubEvents();
+      syncService.disconnect();
+    };
+  }, []);
+
+  // Keep localStorage updated (local backup)
   useEffect(() => {
     localStorage.setItem('agrovision_farms', JSON.stringify(farms));
   }, [farms]);
@@ -556,6 +780,8 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       'success'
     );
     addActivityLog('Observation created', data.title, targetField?.name, 'observation');
+    // Persist to shared backend
+    observationService.createObservation({ ...newObs, source: (data.source || 'manual') as ObservationSource }).catch(() => {});
     return newObs;
   };
 
@@ -563,11 +789,15 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setObservations(prev => prev.map(o => o.id === id ? { ...o, status: 'Resolved' } : o));
     confetti({ particleCount: 40, spread: 60, origin: { y: 0.8 } });
     showToast('Resolved', 'Observation marked as resolved', 'success');
+    // Persist to backend
+    observationService.updateObservation(id, { status: 'Resolved' }).catch(() => {});
   };
 
   const deleteObservation = (id: string) => {
     setObservations(prev => prev.filter(o => o.id !== id));
     showToast('Deleted', 'Observation removed', 'info');
+    // Persist to backend
+    observationService.deleteObservation(id).catch(() => {});
   };
 
   const addMediaItem = (item: Omit<MediaItem, 'id' | 'timestamp'>): MediaItem => {
@@ -577,6 +807,8 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       timestamp: 'Today • ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
     setMediaItems(prev => [newItem, ...prev]);
+    // Persist to backend
+    mediaService.createMedia({ ...newItem }).catch(() => {});
     return newItem;
   };
 
@@ -617,6 +849,8 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     speechService.playSuccessChime();
     showToast('Task Added', `Scheduled for ${dueDate}`, 'success');
     addActivityLog('Task created', title, undefined, 'task');
+    // Persist to shared backend (fire-and-forget, local state is source of truth for UI)
+    taskService.createTask({ ...newTask, source: 'website' } as Parameters<typeof taskService.createTask>[0]).catch(() => {});
   };
 
   const toggleTaskStatus = (id: string) => {
@@ -626,6 +860,8 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (nextStatus === 'Completed') {
           confetti({ particleCount: 30, spread: 50, origin: { y: 0.8 } });
         }
+        // Persist to backend
+        taskService.updateTask(id, { status: nextStatus } as Partial<FarmTask>).catch(() => {});
         return { ...t, status: nextStatus };
       }
       return t;
@@ -635,6 +871,69 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const deleteTask = (id: string) => {
     setTasks(prev => prev.filter(t => t.id !== id));
     showToast('Task Removed', 'Task deleted', 'info');
+    // Persist to backend
+    taskService.deleteTask(id).catch(() => {});
+  };
+
+  const updateTask = (id: string, updates: Partial<FarmTask>) => {
+    setTasks(prev => prev.map(t => {
+      if (t.id === id) {
+        return { ...t, ...updates };
+      }
+      return t;
+    }));
+    speechService.playSuccessChime();
+    showToast('Task Updated', 'Schedule and details modified', 'success');
+    // Persist to backend
+    taskService.updateTask(id, updates).catch(() => {});
+  };
+
+  const executeVoiceTaskCommand = (transcript: string): VoiceTaskResult => {
+    const result = parseVoiceTaskCommand(transcript, tasks, currentField, currentFarm.fields, currentLanguage);
+    if (!result.handled) return result;
+
+    if (result.action === 'create' && result.title) {
+      const newTask: FarmTask = {
+        id: 'task-' + Date.now(),
+        title: result.title,
+        fieldId: result.fieldId || null,
+        dueDate: result.dueDate || 'Today',
+        status: 'Pending',
+        voiceCreated: true,
+        createdAt: new Date().toISOString().split('T')[0]
+      };
+      setTasks(prev => [newTask, ...prev]);
+      speechService.playSuccessChime();
+      showToast('Voice Task Created', `${result.title} (${result.dueDate})`, 'success');
+      addActivityLog('Voice task created', result.title, result.fieldName, 'task');
+      return { ...result, task: newTask };
+    }
+
+    if (result.action === 'complete' && result.targetTaskId) {
+      setTasks(prev => prev.map(t => t.id === result.targetTaskId ? { ...t, status: 'Completed' } : t));
+      confetti({ particleCount: 35, spread: 60, origin: { y: 0.8 } });
+      speechService.playSuccessChime();
+      showToast('Task Completed', result.title || 'Marked completed', 'success');
+      addActivityLog('Task completed via voice', result.title || 'Task', undefined, 'task');
+      return result;
+    }
+
+    if (result.action === 'delete' && result.targetTaskId) {
+      setTasks(prev => prev.filter(t => t.id !== result.targetTaskId));
+      showToast('Task Deleted', result.title || 'Task removed', 'info');
+      addActivityLog('Task deleted via voice', result.title || 'Task', undefined, 'task');
+      return result;
+    }
+
+    if (result.action === 'update' && result.targetTaskId) {
+      setTasks(prev => prev.map(t => t.id === result.targetTaskId ? { ...t, dueDate: result.dueDate || t.dueDate } : t));
+      speechService.playSuccessChime();
+      showToast('Task Rescheduled', `${result.title} (${result.dueDate})`, 'success');
+      addActivityLog('Task rescheduled via voice', `${result.title} -> ${result.dueDate}`, undefined, 'task');
+      return result;
+    }
+
+    return result;
   };
 
   const addReminder = (title: string, timeStr: string, fieldId: string | null) => {
@@ -649,10 +948,14 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setReminders(prev => [newRem, ...prev]);
     speechService.playSuccessChime();
     showToast('Reminder Scheduled', `${title} (${timeStr})`, 'success');
+    // Persist to backend
+    reminderService.createReminder({ ...newRem }).catch(() => {});
   };
 
   const dismissReminder = (id: string) => {
     setReminders(prev => prev.filter(r => r.id !== id));
+    // Persist to backend
+    reminderService.deleteReminder(id).catch(() => {});
   };
 
   const toggleDeviceConnection = () => {
@@ -694,8 +997,8 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setNotifications([]);
   };
 
-  // Conversational Assistant Chat Engine
-  const sendAssistantMessage = (userText: string) => {
+  // Conversational Assistant Chat Engine with Gemini AI
+  const sendAssistantMessage = async (userText: string) => {
     if (!userText.trim()) return;
 
     const userMsg: AssistantChatMessage = {
@@ -705,52 +1008,146 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
-    setChatMessages(prev => [...prev, userMsg]);
+    const updatedMessages = [...chatMessages, userMsg];
+    setChatMessages(updatedMessages);
+    setIsAssistantThinking(true);
 
-    setTimeout(() => {
-      let reply = '';
-      const lower = userText.toLowerCase();
+    // 0. Safety & Scope Guardrail: Block self-harm, trading, coding/Python, academic math
+    const scopeCheck = geminiService.checkScopeAndSafety(userText, currentLanguage);
+    if (scopeCheck.blocked && scopeCheck.refusalMessage) {
+      const botMsg: AssistantChatMessage = {
+        id: 'msg-' + (Date.now() + 1),
+        role: 'assistant',
+        content: scopeCheck.refusalMessage,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        hasAudio: true
+      };
+      setChatMessages(prev => [...prev, botMsg]);
+      speechService.speak(scopeCheck.refusalMessage, currentLanguage);
+      setIsAssistantThinking(false);
+      return;
+    }
 
-      // Respect field isolation in chat answers
-      if (lower.includes('task') || lower.includes('to do')) {
-        const fieldTasks = currentField
-          ? tasks.filter(t => t.fieldId === currentField.id && t.status === 'Pending')
-          : tasks.filter(t => t.status === 'Pending');
-        reply = fieldTasks.length > 0
-          ? `You have ${fieldTasks.length} pending task(s)${currentField ? ` in ${currentField.name}` : ''}: ${fieldTasks.map(t => t.title).join(', ')}.`
-          : `You have no pending tasks${currentField ? ` in ${currentField.name}` : ''}.`;
-      } else if (lower.includes('yesterday') || lower.includes('last record')) {
-        const fieldObs = currentField
-          ? observations.filter(o => o.fieldId === currentField.id)
-          : observations;
-        const targetObs = fieldObs[0];
-        reply = targetObs
-          ? `In ${targetObs.locationName || 'the field'}, observation recorded: "${targetObs.title}".`
-          : `No observations found for ${currentField ? currentField.name : 'this area'}.`;
-      } else if (lower.includes('weather') || lower.includes('rain')) {
-        const w = getFieldWeather(currentField?.id);
-        reply = w && !w.isError
-          ? `In ${w.fieldName}, current weather is ${w.temperature}°C, ${w.condition}. Humidity is ${w.humidity}% with wind at ${w.windKmh} km/h (${w.windDirectionCompass}). Spray conditions are ${w.sprayAdvisory.status}.`
-          : `Weather data is currently unavailable for ${currentField?.name || 'this location'}.`;
-      } else if (lower.includes('where am i') || lower.includes('location')) {
-        reply = currentField
-          ? `You are inside ${currentField.name} at GPS ${currentGps.lat.toFixed(4)}° N, ${currentGps.lng.toFixed(4)}° E.`
-          : `You are outside registered field boundaries at GPS ${currentGps.lat.toFixed(4)}° N, ${currentGps.lng.toFixed(4)}° E.`;
-      } else {
-        reply = `I am monitoring ${currentFarm.name}. You can ask about crop observations, weather advisories, or tasks.`;
+    // 1. Direct Voice Task Command Processing (Deterministic, zero latency)
+    const voiceTaskResult = executeVoiceTaskCommand(userText);
+    if (voiceTaskResult.handled && voiceTaskResult.speechReply) {
+      const botMsg: AssistantChatMessage = {
+        id: 'msg-' + (Date.now() + 1),
+        role: 'assistant',
+        content: voiceTaskResult.speechReply,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        hasAudio: true,
+        actionTaken: voiceTaskResult.action ? `Task ${voiceTaskResult.action.toUpperCase()}` : undefined,
+        taskActionMeta: {
+          type: voiceTaskResult.action as any,
+          taskTitle: voiceTaskResult.title || 'Farm Task',
+          dueDate: voiceTaskResult.dueDate,
+          fieldName: voiceTaskResult.fieldName,
+          taskId: voiceTaskResult.targetTaskId || voiceTaskResult.task?.id
+        }
+      };
+      setChatMessages(prev => [...prev, botMsg]);
+      speechService.speak(voiceTaskResult.speechReply, currentLanguage);
+      setIsAssistantThinking(false);
+      return;
+    }
+
+    // 2. Conversational Processing via Gemini 3.6 / 2.5 Flash
+    try {
+      const weather = getFieldWeather(currentField?.id);
+      const reply = await geminiService.askAssistant(
+        userText,
+        updatedMessages.map(m => ({ role: m.role, content: m.content })),
+        {
+          farmerName: 'Ravi Kumar',
+          farmName: currentFarm.name,
+          farmLocation: currentFarm.locationName,
+          field: currentField,
+          gps: currentGps,
+          weather: weather || null,
+          tasks,
+          observations,
+          problems,
+          language: currentLanguage
+        }
+      );
+
+      // Check if Gemini embedded a [TASK_ACTION: {...}] tag
+      let cleanReply = reply;
+      let taskMeta: AssistantChatMessage['taskActionMeta'] = undefined;
+      const taskActionRegex = /\[TASK_ACTION:\s*(\{.*?\})\]/s;
+      const actionMatch = reply.match(taskActionRegex);
+
+      if (actionMatch) {
+        try {
+          const actionData = JSON.parse(actionMatch[1]);
+          cleanReply = reply.replace(taskActionRegex, '').trim();
+
+          if (actionData.action === 'complete') {
+            const matched = actionData.taskQuery
+              ? tasks.find(t => t.title.toLowerCase().includes(actionData.taskQuery.toLowerCase()))
+              : tasks.find(t => t.status === 'Pending');
+            if (matched) {
+              setTasks(prev => prev.map(t => t.id === matched.id ? { ...t, status: 'Completed' } : t));
+              confetti({ particleCount: 35, spread: 60, origin: { y: 0.8 } });
+              showToast('Task Completed', matched.title, 'success');
+              taskMeta = { type: 'completed', taskTitle: matched.title, taskId: matched.id };
+            }
+          } else if (actionData.action === 'create' && actionData.title) {
+            const newTask: FarmTask = {
+              id: 'task-' + Date.now(),
+              title: actionData.title,
+              fieldId: currentField?.id || null,
+              dueDate: actionData.dueDate || 'Today',
+              status: 'Pending',
+              voiceCreated: true,
+              createdAt: new Date().toISOString().split('T')[0]
+            };
+            setTasks(prev => [newTask, ...prev]);
+            speechService.playSuccessChime();
+            showToast('Task Created', actionData.title, 'success');
+            taskMeta = { type: 'created', taskTitle: newTask.title, dueDate: newTask.dueDate, taskId: newTask.id };
+          } else if (actionData.action === 'delete') {
+            const matched = actionData.taskQuery
+              ? tasks.find(t => t.title.toLowerCase().includes(actionData.taskQuery.toLowerCase()))
+              : null;
+            if (matched) {
+              setTasks(prev => prev.filter(t => t.id !== matched.id));
+              showToast('Task Removed', matched.title, 'info');
+              taskMeta = { type: 'deleted', taskTitle: matched.title, taskId: matched.id };
+            }
+          } else if (actionData.action === 'update') {
+            const matched = actionData.taskQuery
+              ? tasks.find(t => t.title.toLowerCase().includes(actionData.taskQuery.toLowerCase()))
+              : null;
+            if (matched && actionData.dueDate) {
+              setTasks(prev => prev.map(t => t.id === matched.id ? { ...t, dueDate: actionData.dueDate } : t));
+              speechService.playSuccessChime();
+              showToast('Task Updated', `${matched.title} -> ${actionData.dueDate}`, 'success');
+              taskMeta = { type: 'updated', taskTitle: matched.title, dueDate: actionData.dueDate, taskId: matched.id };
+            }
+          }
+        } catch (err) {
+          console.error('Failed to parse Gemini task action JSON:', err);
+        }
       }
 
       const botMsg: AssistantChatMessage = {
         id: 'msg-' + (Date.now() + 1),
         role: 'assistant',
-        content: reply,
+        content: cleanReply,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        hasAudio: true
+        hasAudio: true,
+        taskActionMeta: taskMeta
       };
 
       setChatMessages(prev => [...prev, botMsg]);
-      speechService.speak(reply);
-    }, 600);
+      speechService.speak(cleanReply, currentLanguage);
+    } catch (err) {
+      console.error('Error in assistant response:', err);
+    } finally {
+      setIsAssistantThinking(false);
+    }
   };
 
   const clearChat = () => {
@@ -840,9 +1237,25 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             possibleDisease: 'Anthracnose (Colletotrichum gloeosporioides)',
             confidence: 87,
             severity: 'Moderate',
+            severityScore: 6.8,
+            foliarImpactPct: 18,
+            urgencyLevel: 'Within 48h',
             recommendedAction: 'Inspect affected branch cluster. Prune affected leaves. Apply Copper Oxychloride (0.3%) before rain.',
             modelName: 'AgroVision-CropVision v3.2',
-            analyzedAt: 'Just now'
+            analyzedAt: 'Just now',
+            dataSource: {
+              sourceType: 'Smartphone High-Res Field Photo + Multi-Spectral Sensor Scan',
+              imageResolution: '3024 × 4032 (12.2 MP, RGB Exif)',
+              weatherTelemetry: 'OpenWeather/Open-Meteo Ground Telemetry: 28°C, 62% humidity, 11 km/h wind',
+              gpsLocation: `${field.center.lat.toFixed(4)}° N, ${field.center.lng.toFixed(4)}° E`,
+              parcelName: field.name,
+              referenceCorpus: 'ICAR-CISH Mango Pathology Corpus & AgroVision-CropVision v3.2',
+              extractedFeatures: [
+                'Concentric dark necrotic lesions on lower foliage edges',
+                'Chlorotic halo around irregular foliar spots',
+                'Early petiole and leaf margin necrosis'
+              ]
+            }
           }
         });
 
@@ -893,6 +1306,8 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       value={{
         user,
         updateUser: updates => setUser(prev => ({ ...prev, ...updates })),
+        currentLanguage,
+        setLanguage,
         farms,
         currentFarm,
         currentField,
@@ -923,6 +1338,8 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         addTask,
         toggleTaskStatus,
         deleteTask,
+        updateTask,
+        executeVoiceTaskCommand,
         reminders,
         getFieldReminders,
         addReminder,
@@ -942,6 +1359,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isNotificationDrawerOpen,
         setIsNotificationDrawerOpen,
         chatMessages,
+        isAssistantThinking,
         sendAssistantMessage,
         clearChat,
         activityLog,
@@ -950,6 +1368,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         showToast,
         isBriefingModalOpen,
         setIsBriefingModalOpen,
+        syncStatus,
         simulateGpsMovement,
         simulatePhotoCapture,
         simulateVoiceObservation,

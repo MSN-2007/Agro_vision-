@@ -8,6 +8,28 @@ interface CacheEntry {
 const WEATHER_CACHE: Record<string, CacheEntry> = {};
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
+export const DEFAULT_OWM_KEYS = [
+  '659e3216ae3cb03306b371693901e9a6',
+  '2e6f5c9cd10bea233a70b72066799c11'
+];
+
+export function getStoredWeatherKeys(): string[] {
+  try {
+    const custom = localStorage.getItem('agro_owm_api_keys');
+    if (custom) {
+      const parsed = JSON.parse(custom);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {
+    // Ignore local storage parse error
+  }
+  return DEFAULT_OWM_KEYS;
+}
+
+export function saveStoredWeatherKeys(keys: string[]): void {
+  localStorage.setItem('agro_owm_api_keys', JSON.stringify(keys));
+}
+
 /**
  * Convert wind degrees to 16-point compass direction
  */
@@ -69,7 +91,7 @@ export function wmoCodeToCondition(code: number): string {
 /**
  * Evaluate agronomic foliar spray advisory based on real weather parameters
  */
-function evaluateSprayAdvisory(
+export function evaluateSprayAdvisory(
   windKmh: number,
   rainProb: number,
   tempC: number
@@ -105,7 +127,267 @@ function evaluateSprayAdvisory(
 }
 
 /**
- * Fetch real live weather from Open-Meteo API using exact latitude & longitude
+ * Attempt to fetch live weather from OpenWeatherMap using provided API keys
+ */
+async function fetchFromOpenWeatherMap(
+  lat: number,
+  lng: number,
+  fieldId: string,
+  fieldName: string
+): Promise<FieldWeather | null> {
+  const keys = getStoredWeatherKeys();
+
+  for (const apiKey of keys) {
+    try {
+      const cleanKey = apiKey.trim().replace(/^[-*•]\s*/, '');
+      if (!cleanKey) continue;
+
+      const currentUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&appid=${cleanKey}&units=metric`;
+      const currentRes = await fetch(currentUrl);
+
+      if (!currentRes.ok) {
+        continue; // Try next key if 401 (pending activation) or 429
+      }
+
+      const currentData = await currentRes.json();
+
+      // Forecast for hourly & daily
+      const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lng}&appid=${cleanKey}&units=metric`;
+      const forecastRes = await fetch(forecastUrl);
+      const forecastData = forecastRes.ok ? await forecastRes.json() : null;
+
+      const temp = Math.round(currentData.main?.temp ?? 25);
+      const feelsLike = Math.round(currentData.main?.feels_like ?? temp);
+      const tempMin = Math.round(currentData.main?.temp_min ?? temp - 3);
+      const tempMax = Math.round(currentData.main?.temp_max ?? temp + 3);
+      const humidity = Math.round(currentData.main?.humidity ?? 60);
+      const pressureHpa = Math.round(currentData.main?.pressure ?? 1012);
+      const windKmh = Math.round((currentData.wind?.speed ?? 0) * 3.6);
+      const windGustsKmh = Math.round((currentData.wind?.gust ?? (currentData.wind?.speed || 0) * 1.3) * 3.6);
+      const windDeg = currentData.wind?.deg ?? 0;
+      const windCompass = degToCompass(windDeg);
+      const cloudCoverPct = Math.round(currentData.clouds?.all ?? 20);
+      const rainfallMm = Math.round((currentData.rain?.['1h'] ?? currentData.rain?.['3h'] ?? 0) * 10) / 10;
+      const condition = currentData.weather?.[0]?.main || 'Clear';
+      const rainProb = rainfallMm > 0 ? 80 : 15;
+
+      const sunriseTime = currentData.sys?.sunrise
+        ? new Date(currentData.sys.sunrise * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        : '06:00 AM';
+      const sunsetTime = currentData.sys?.sunset
+        ? new Date(currentData.sys.sunset * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        : '06:30 PM';
+
+      // Parse forecast points
+      const hourlyForecast: HourlyWeatherPoint[] = [];
+      const dailyForecast: DailyWeatherForecast[] = [];
+
+      if (forecastData?.list && Array.isArray(forecastData.list)) {
+        const list = forecastData.list;
+        for (let i = 0; i < Math.min(list.length, 8); i++) {
+          const item = list[i];
+          const timeStr = item.dt_txt
+            ? new Date(item.dt_txt).toLocaleTimeString([], { hour: 'numeric' })
+            : `${i * 3}:00`;
+          hourlyForecast.push({
+            time: timeStr,
+            temp: Math.round(item.main?.temp ?? temp),
+            humidity: Math.round(item.main?.humidity ?? humidity),
+            rainProb: Math.round((item.pop ?? 0) * 100),
+            solarRadiation: 0
+          });
+        }
+
+        // Daily aggregated items (every 8th item is roughly 24h)
+        const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        for (let i = 0; i < list.length; i += 8) {
+          const item = list[i];
+          const dateObj = new Date(item.dt_txt || Date.now());
+          dailyForecast.push({
+            day: dailyForecast.length === 0 ? 'Today' : daysOfWeek[dateObj.getDay()] || 'Day',
+            date: dateObj.toISOString().split('T')[0],
+            tempMax: Math.round(item.main?.temp_max ?? temp + 2),
+            tempMin: Math.round(item.main?.temp_min ?? temp - 3),
+            condition: item.weather?.[0]?.main || 'Clear',
+            rainProb: Math.round((item.pop ?? 0) * 100),
+            windSpeed: Math.round((item.wind?.speed ?? 0) * 3.6)
+          });
+          if (dailyForecast.length >= 5) break;
+        }
+      }
+
+      const sprayAdvisory = evaluateSprayAdvisory(windKmh, rainProb, temp);
+
+      return {
+        fieldId,
+        fieldName,
+        latitude: lat,
+        longitude: lng,
+        temperature: temp,
+        feelsLike,
+        tempMin,
+        tempMax,
+        condition,
+        conditionCode: currentData.weather?.[0]?.id ?? 800,
+        humidity,
+        windKmh,
+        windDirectionDeg: windDeg,
+        windDirectionCompass: windCompass,
+        windGustsKmh,
+        pressureHpa,
+        visibilityKm: Math.round((currentData.visibility ?? 10000) / 1000),
+        cloudCoverPct,
+        uvIndex: 5.5,
+        rainProbability: rainProb,
+        rainfallMm,
+        sunriseTime,
+        sunsetTime,
+        solarRadiationWm2: null,
+        sprayAdvisory,
+        hourlyForecast,
+        dailyForecast,
+        lastUpdated: 'Just now',
+        provider: 'OpenWeatherMap',
+        isError: false
+      };
+    } catch {
+      // Continue to next key or fallback
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Fetch from Open-Meteo API using exact parcel coordinates
+ */
+async function fetchFromOpenMeteo(
+  lat: number,
+  lng: number,
+  fieldId: string,
+  fieldName: string
+): Promise<FieldWeather> {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,weather_code,cloud_cover,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index,direct_radiation&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,direct_radiation&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,wind_speed_10m_max&timezone=auto`;
+
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Weather API returned status: ${response.status}`);
+  }
+
+  const json = await response.json();
+  const current = json.current || {};
+  const daily = json.daily || {};
+  const hourly = json.hourly || {};
+
+  const temp = Math.round(current.temperature_2m ?? 28);
+  const feelsLike = Math.round(current.apparent_temperature ?? temp);
+  const tempMax = Math.round(daily.temperature_2m_max?.[0] ?? temp + 3);
+  const tempMin = Math.round(daily.temperature_2m_min?.[0] ?? temp - 5);
+  const humidity = Math.round(current.relative_humidity_2m ?? 60);
+  const windKmh = Math.round(current.wind_speed_10m ?? 10);
+  const windGustsKmh = Math.round(current.wind_gusts_10m ?? windKmh * 1.3);
+  const windDeg = current.wind_direction_10m ?? 0;
+  const windCompass = degToCompass(windDeg);
+  const pressureHpa = Math.round(current.surface_pressure ?? 1012);
+  const cloudCoverPct = Math.round(current.cloud_cover ?? 30);
+  const uvIndex = Math.round((current.uv_index ?? 5) * 10) / 10;
+  const rainProb = Math.round(daily.precipitation_probability_max?.[0] ?? (current.rain > 0 ? 80 : 20));
+  const rainfallMm = Math.round((current.precipitation ?? 0) * 10) / 10;
+  const weatherCode = current.weather_code ?? 0;
+  const condition = wmoCodeToCondition(weatherCode);
+
+  const solarRadiationWm2 = current.direct_radiation !== undefined && current.direct_radiation !== null
+    ? Math.round(current.direct_radiation)
+    : null;
+
+  const formatTime = (isoString?: string) => {
+    if (!isoString) return '06:00 AM';
+    try {
+      const d = new Date(isoString);
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return '06:00 AM';
+    }
+  };
+
+  const sunriseTime = formatTime(daily.sunrise?.[0]);
+  const sunsetTime = formatTime(daily.sunset?.[0]);
+
+  const hourlyPoints: HourlyWeatherPoint[] = [];
+  const hourlyTimes = hourly.time || [];
+  const currentHourIndex = new Date().getHours();
+  const startIndex = Math.max(0, Math.min(currentHourIndex, hourlyTimes.length - 12));
+
+  for (let i = startIndex; i < Math.min(startIndex + 12, hourlyTimes.length); i++) {
+    const t = hourlyTimes[i];
+    const hourStr = t ? new Date(t).toLocaleTimeString([], { hour: 'numeric' }) : `${i}:00`;
+    hourlyPoints.push({
+      time: hourStr,
+      temp: Math.round(hourly.temperature_2m?.[i] ?? temp),
+      humidity: Math.round(hourly.relative_humidity_2m?.[i] ?? humidity),
+      rainProb: Math.round(hourly.precipitation_probability?.[i] ?? rainProb),
+      solarRadiation: Math.round(hourly.direct_radiation?.[i] ?? 0)
+    });
+  }
+
+  const dailyForecast: DailyWeatherForecast[] = [];
+  const dailyTimes = daily.time || [];
+  const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  for (let i = 0; i < Math.min(dailyTimes.length, 5); i++) {
+    const dateStr = dailyTimes[i];
+    const dateObj = new Date(dateStr);
+    const dayLabel = i === 0 ? 'Today' : daysOfWeek[dateObj.getDay()] || `Day ${i + 1}`;
+    dailyForecast.push({
+      day: dayLabel,
+      date: dateStr,
+      tempMax: Math.round(daily.temperature_2m_max?.[i] ?? temp + 2),
+      tempMin: Math.round(daily.temperature_2m_min?.[i] ?? temp - 4),
+      condition: wmoCodeToCondition(daily.weather_code?.[i] ?? 0),
+      rainProb: Math.round(daily.precipitation_probability_max?.[i] ?? 20),
+      windSpeed: Math.round(daily.wind_speed_10m_max?.[i] ?? windKmh)
+    });
+  }
+
+  const sprayAdvisory = evaluateSprayAdvisory(windKmh, rainProb, temp);
+
+  return {
+    fieldId,
+    fieldName,
+    latitude: lat,
+    longitude: lng,
+    temperature: temp,
+    feelsLike,
+    tempMin,
+    tempMax,
+    condition,
+    conditionCode: weatherCode,
+    humidity,
+    windKmh,
+    windDirectionDeg: windDeg,
+    windDirectionCompass: windCompass,
+    windGustsKmh,
+    pressureHpa,
+    visibilityKm: 10,
+    cloudCoverPct,
+    uvIndex,
+    rainProbability: rainProb,
+    rainfallMm,
+    sunriseTime,
+    sunsetTime,
+    solarRadiationWm2,
+    sprayAdvisory,
+    hourlyForecast: hourlyPoints,
+    dailyForecast,
+    lastUpdated: 'Just now',
+    provider: 'OpenWeatherMap (Fallback: Open-Meteo)',
+    isError: false
+  };
+}
+
+/**
+ * Fetch real live weather: Attempts OpenWeatherMap with provided keys first,
+ * with resilient automatic fallback to Open-Meteo coordinates telemetry.
  */
 export async function fetchFieldWeather(
   fieldId: string,
@@ -130,135 +412,18 @@ export async function fetchFieldWeather(
   }
 
   try {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,weather_code,cloud_cover,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index,direct_radiation&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,direct_radiation&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,wind_speed_10m_max&timezone=auto`;
-
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Weather API returned status: ${response.status}`);
+    // 1. Try OpenWeatherMap with user keys
+    const owmData = await fetchFromOpenWeatherMap(lat, lng, fieldId, fieldName);
+    if (owmData) {
+      WEATHER_CACHE[cacheKey] = { data: owmData, timestamp: now };
+      return owmData;
     }
 
-    const json = await response.json();
-    const current = json.current || {};
-    const daily = json.daily || {};
-    const hourly = json.hourly || {};
-
-    const temp = Math.round(current.temperature_2m ?? 28);
-    const feelsLike = Math.round(current.apparent_temperature ?? temp);
-    const tempMax = Math.round(daily.temperature_2m_max?.[0] ?? temp + 3);
-    const tempMin = Math.round(daily.temperature_2m_min?.[0] ?? temp - 5);
-    const humidity = Math.round(current.relative_humidity_2m ?? 60);
-    const windKmh = Math.round(current.wind_speed_10m ?? 10);
-    const windGustsKmh = Math.round(current.wind_gusts_10m ?? windKmh * 1.3);
-    const windDeg = current.wind_direction_10m ?? 0;
-    const windCompass = degToCompass(windDeg);
-    const pressureHpa = Math.round(current.surface_pressure ?? 1012);
-    const cloudCoverPct = Math.round(current.cloud_cover ?? 30);
-    const uvIndex = Math.round((current.uv_index ?? 5) * 10) / 10;
-    const rainProb = Math.round(daily.precipitation_probability_max?.[0] ?? (current.rain > 0 ? 80 : 20));
-    const rainfallMm = Math.round((current.precipitation ?? 0) * 10) / 10;
-    const weatherCode = current.weather_code ?? 0;
-    const condition = wmoCodeToCondition(weatherCode);
-
-    // Direct shortwave solar radiation from API in W/m²
-    const solarRadiationWm2 = current.direct_radiation !== undefined && current.direct_radiation !== null
-      ? Math.round(current.direct_radiation)
-      : null;
-
-    // Format Sunrise / Sunset
-    const formatTime = (isoString?: string) => {
-      if (!isoString) return '06:00 AM';
-      try {
-        const d = new Date(isoString);
-        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      } catch {
-        return '06:00 AM';
-      }
-    };
-
-    const sunriseTime = formatTime(daily.sunrise?.[0]);
-    const sunsetTime = formatTime(daily.sunset?.[0]);
-
-    // Parse Hourly Points (Next 12 hours)
-    const hourlyPoints: HourlyWeatherPoint[] = [];
-    const hourlyTimes = hourly.time || [];
-    const currentHourIndex = new Date().getHours();
-    const startIndex = Math.max(0, Math.min(currentHourIndex, hourlyTimes.length - 12));
-
-    for (let i = startIndex; i < Math.min(startIndex + 12, hourlyTimes.length); i++) {
-      const t = hourlyTimes[i];
-      const hourStr = t ? new Date(t).toLocaleTimeString([], { hour: 'numeric' }) : `${i}:00`;
-      hourlyPoints.push({
-        time: hourStr,
-        temp: Math.round(hourly.temperature_2m?.[i] ?? temp),
-        humidity: Math.round(hourly.relative_humidity_2m?.[i] ?? humidity),
-        rainProb: Math.round(hourly.precipitation_probability?.[i] ?? rainProb),
-        solarRadiation: Math.round(hourly.direct_radiation?.[i] ?? 0)
-      });
-    }
-
-    // Parse Daily Forecast
-    const dailyForecast: DailyWeatherForecast[] = [];
-    const dailyTimes = daily.time || [];
-    const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-    for (let i = 0; i < Math.min(dailyTimes.length, 5); i++) {
-      const dateStr = dailyTimes[i];
-      const dateObj = new Date(dateStr);
-      const dayLabel = i === 0 ? 'Today' : daysOfWeek[dateObj.getDay()] || `Day ${i + 1}`;
-      dailyForecast.push({
-        day: dayLabel,
-        date: dateStr,
-        tempMax: Math.round(daily.temperature_2m_max?.[i] ?? temp + 2),
-        tempMin: Math.round(daily.temperature_2m_min?.[i] ?? temp - 4),
-        condition: wmoCodeToCondition(daily.weather_code?.[i] ?? 0),
-        rainProb: Math.round(daily.precipitation_probability_max?.[i] ?? 20),
-        windSpeed: Math.round(daily.wind_speed_10m_max?.[i] ?? windKmh)
-      });
-    }
-
-    const sprayAdvisory = evaluateSprayAdvisory(windKmh, rainProb, temp);
-
-    const result: FieldWeather = {
-      fieldId,
-      fieldName,
-      latitude: lat,
-      longitude: lng,
-      temperature: temp,
-      feelsLike,
-      tempMin,
-      tempMax,
-      condition,
-      conditionCode: weatherCode,
-      humidity,
-      windKmh,
-      windDirectionDeg: windDeg,
-      windDirectionCompass: windCompass,
-      windGustsKmh,
-      pressureHpa,
-      visibilityKm: 10, // Standard Open-Meteo visibility baseline
-      cloudCoverPct,
-      uvIndex,
-      rainProbability: rainProb,
-      rainfallMm,
-      sunriseTime,
-      sunsetTime,
-      solarRadiationWm2,
-      sprayAdvisory,
-      hourlyForecast: hourlyPoints,
-      dailyForecast,
-      lastUpdated: 'Just now',
-      isError: false
-    };
-
-    // Store in cache
-    WEATHER_CACHE[cacheKey] = {
-      data: result,
-      timestamp: now
-    };
-
-    return result;
-  } catch (error) {
-    // Return error weather structure as required by Section 36
+    // 2. Resilient fallback to Open-Meteo
+    const fallbackData = await fetchFromOpenMeteo(lat, lng, fieldId, fieldName);
+    WEATHER_CACHE[cacheKey] = { data: fallbackData, timestamp: now };
+    return fallbackData;
+  } catch {
     return {
       fieldId,
       fieldName,
@@ -291,6 +456,7 @@ export async function fetchFieldWeather(
       hourlyForecast: [],
       dailyForecast: [],
       lastUpdated: 'Failed',
+      provider: 'Unavailable',
       isError: true,
       errorMessage: 'Weather data temporarily unavailable.'
     };

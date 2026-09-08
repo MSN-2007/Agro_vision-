@@ -30,17 +30,17 @@ export const DemoBar: React.FC<DemoBarProps> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 text-white px-4 py-2.5 shadow-md border-b border-amber-400 relative z-20 transition-all">
+    <div className="bg-slate-900/95 backdrop-blur-md text-slate-100 px-4 py-2 shadow-lg border-b border-slate-700/80 relative z-20 transition-all">
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-2.5">
         {/* Title / Description */}
         <div className="flex items-center gap-2 text-xs">
-          <div className="p-1 rounded bg-white/20">
-            <Sparkles className="w-4 h-4 text-amber-200" />
+          <div className="p-1 rounded bg-slate-800 text-emerald-400 border border-slate-700">
+            <Sparkles className="w-3.5 h-3.5" />
           </div>
           <div>
-            <span className="font-extrabold tracking-wide uppercase">Wearable Hardware Simulator</span>
-            <span className="hidden lg:inline text-amber-100 ml-2">
-              (Simulate smart glasses hands-free actions & AI analysis)
+            <span className="font-bold tracking-wide uppercase text-slate-200">Field Diagnostics & Simulation Sandbox</span>
+            <span className="hidden lg:inline text-slate-400 ml-2">
+              (Quickly test GPS location jumps, photo capture, and voice events)
             </span>
           </div>
         </div>
@@ -48,13 +48,13 @@ export const DemoBar: React.FC<DemoBarProps> = ({ isOpen, onClose }) => {
         {/* Action Buttons */}
         <div className="flex items-center flex-wrap gap-1.5 justify-center">
           {/* GPS Movement Dropdown / Trigger */}
-          <div className="flex items-center bg-white/10 rounded-lg p-0.5 border border-white/20">
+          <div className="flex items-center bg-slate-800/80 rounded-lg p-0.5 border border-slate-700">
             <button
               onClick={() => simulateGpsMovement('mango')}
-              className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded hover:bg-white/20 transition-colors"
+              className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded hover:bg-slate-700 transition-colors text-slate-200"
               title="Move GPS into Mango Plantation"
             >
-              <Navigation className="w-3.5 h-3.5 text-amber-200" />
+              <Navigation className="w-3.5 h-3.5 text-emerald-400" />
               <span>Simulate GPS Movement</span>
             </button>
             <div className="h-4 w-px bg-white/20 mx-0.5" />
@@ -73,55 +73,55 @@ export const DemoBar: React.FC<DemoBarProps> = ({ isOpen, onClose }) => {
           {/* Photo Capture */}
           <button
             onClick={simulatePhotoCapture}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-white/15 hover:bg-white/25 border border-white/20 transition-all shadow-sm active:scale-95"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition-all shadow-sm active:scale-95"
           >
-            <Camera className="w-3.5 h-3.5 text-amber-200" />
+            <Camera className="w-3.5 h-3.5 text-sky-400" />
             <span>Simulate Photo Capture</span>
           </button>
 
           {/* Voice Observation */}
           <button
             onClick={simulateVoiceObservation}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-white/15 hover:bg-white/25 border border-white/20 transition-all shadow-sm active:scale-95"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition-all shadow-sm active:scale-95"
           >
-            <Mic className="w-3.5 h-3.5 text-amber-200" />
+            <Mic className="w-3.5 h-3.5 text-emerald-400" />
             <span>Simulate Voice Observation</span>
           </button>
 
           {/* Disease Alert */}
           <button
             onClick={simulateAiDiseaseAlert}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-white/15 hover:bg-white/25 border border-white/20 transition-all shadow-sm active:scale-95"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition-all shadow-sm active:scale-95"
           >
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-200" />
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
             <span>Simulate Disease Alert</span>
           </button>
 
           {/* Task Creation */}
           <button
             onClick={simulateTaskCreation}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-white/15 hover:bg-white/25 border border-white/20 transition-all shadow-sm active:scale-95"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition-all shadow-sm active:scale-95"
           >
-            <CheckSquare className="w-3.5 h-3.5 text-amber-200" />
+            <CheckSquare className="w-3.5 h-3.5 text-emerald-400" />
             <span>Simulate Task Creation</span>
           </button>
 
           {/* Morning Briefing */}
           <button
             onClick={simulateMorningBriefing}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-white/15 hover:bg-white/25 border border-white/20 transition-all shadow-sm active:scale-95"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition-all shadow-sm active:scale-95"
           >
-            <Sun className="w-3.5 h-3.5 text-amber-200" />
+            <Sun className="w-3.5 h-3.5 text-amber-400" />
             <span>Simulate Morning Briefing</span>
           </button>
 
           {/* Close button */}
           <button
             onClick={onClose}
-            className="p-1 rounded-lg hover:bg-white/20 transition-colors ml-1"
-            title="Hide Demo Bar"
+            className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors ml-1"
+            title="Hide Diagnostics Bar"
           >
-            <X className="w-4 h-4 text-amber-200 hover:text-white" />
+            <X className="w-4 h-4" />
           </button>
         </div>
       </div>

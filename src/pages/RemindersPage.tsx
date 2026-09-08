@@ -28,7 +28,7 @@ export const RemindersPage: React.FC = () => {
             Voice & Scheduled Reminders
           </h1>
           <p className="text-xs sm:text-sm text-slate-500">
-            Smart glasses audio alerts and push notifications for irrigation pumps, fertigation timers, and farm visits.
+            Audio alerts and notifications for irrigation pumps, fertigation schedules, and field visits.
           </p>
         </div>
 

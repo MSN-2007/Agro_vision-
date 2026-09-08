@@ -19,6 +19,7 @@ import {
 import { Field } from '../types/agro';
 import { useFarm } from '../context/FarmContext';
 import { QuickActionModal, QuickActionType } from '../components/QuickActionModal';
+import { AiDiagnosisCard } from '../components/AiDiagnosisCard';
 
 interface FieldDetailPageProps {
   field: Field;
@@ -440,7 +441,7 @@ export const FieldDetailPage: React.FC<FieldDetailPageProps> = ({ field, onBack,
             <div className="bg-white rounded-3xl p-12 text-center text-slate-400 border border-slate-200 space-y-3">
               <Camera className="w-10 h-10 mx-auto text-slate-300" />
               <p className="font-bold text-slate-700">0 media items in this field.</p>
-              <p className="text-xs">Take photos with your smart glasses inside this field boundary.</p>
+              <p className="text-xs">Take geotagged photos inside this field boundary.</p>
               <button
                 onClick={() => setModalAction('photo')}
                 className="px-4 py-2 bg-forest-600 hover:bg-forest-700 text-white text-xs font-bold rounded-xl shadow-xs"
@@ -518,9 +519,14 @@ export const FieldDetailPage: React.FC<FieldDetailPageProps> = ({ field, onBack,
                 </div>
 
                 {prob.aiAnalysis && (
-                  <div className="p-4 rounded-2xl bg-forest-50/70 border border-forest-100 space-y-2 text-xs">
-                    <p className="font-bold text-forest-900">Recommended Action:</p>
-                    <p className="text-forest-800 leading-relaxed">{prob.aiAnalysis.recommendedAction}</p>
+                  <div className="mt-3">
+                    <AiDiagnosisCard
+                      aiAnalysis={prob.aiAnalysis}
+                      fieldName={field.name}
+                      cropName={prob.crop}
+                      gpsFallback={field.center}
+                      defaultExpanded={false}
+                    />
                   </div>
                 )}
               </div>

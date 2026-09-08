@@ -37,7 +37,7 @@ import {
 const AppContent: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<PageId>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isDemoBarOpen, setIsDemoBarOpen] = useState(true); // Open by default for easy demoing!
+  const [isDemoBarOpen, setIsDemoBarOpen] = useState(false); // Closed by default for clean presentation
   const [selectedFieldForDetail, setSelectedFieldForDetail] = useState<Field | null>(null);
 
   const handleSelectField = (field: Field) => {
@@ -69,7 +69,7 @@ const AppContent: React.FC = () => {
         />
 
         {/* 3. Main Content Area */}
-        <div className="flex-1 lg:pl-72 flex flex-col min-w-0">
+        <div className={`flex-1 lg:pl-72 flex flex-col min-w-0 ${(currentPage === 'assistant' || currentPage === 'map') ? 'h-screen overflow-hidden' : ''}`}>
           {/* Header */}
           <Header
             onOpenSidebar={() => setIsSidebarOpen(true)}
@@ -78,7 +78,7 @@ const AppContent: React.FC = () => {
           />
 
           {/* Page Routing */}
-          <main className="flex-1 p-4 sm:p-6 lg:p-8">
+          <main className={`flex-1 ${(currentPage === 'assistant' || currentPage === 'map') ? 'p-2 sm:p-3 flex flex-col min-h-0 overflow-hidden' : 'p-4 sm:p-6 lg:p-8'}`}>
             {selectedFieldForDetail ? (
               <FieldDetailPage
                 field={selectedFieldForDetail}

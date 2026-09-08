@@ -11,6 +11,7 @@ import {
   Info
 } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
+import { AiDiagnosisCard } from '../components/AiDiagnosisCard';
 
 export const ProblemsPage: React.FC = () => {
   const { problems, currentFarm, resolveProblem, showToast } = useFarm();
@@ -114,40 +115,15 @@ export const ProblemsPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* AI Analysis Breakdown Box (Master Prompt Section 11) */}
+              {/* AI Diagnosis Output Card with Scoring & Verified Data Sources */}
               {prob.aiAnalysis && (
-                <div className="p-4 rounded-2xl bg-gradient-to-r from-forest-50/90 to-emerald-50/60 border border-forest-100 space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <Bot className="w-4 h-4 text-forest-700" />
-                      <span className="text-xs font-bold text-forest-950 uppercase tracking-wide">
-                        AI Diagnosis Output
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-extrabold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full">
-                        Confidence: {prob.aiAnalysis.confidence}%
-                      </span>
-                      <span className="text-xs font-extrabold text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-full">
-                        Severity: {prob.aiAnalysis.severity}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="text-xs space-y-1">
-                    <p className="font-semibold text-slate-800">
-                      Recommended Action:
-                    </p>
-                    <p className="text-forest-900 leading-relaxed bg-white/70 p-3 rounded-xl border border-forest-200/60">
-                      {prob.aiAnalysis.recommendedAction}
-                    </p>
-                  </div>
-
-                  <div className="flex justify-between items-center text-[10px] text-forest-600 pt-1">
-                    <span>Evaluated by: {prob.aiAnalysis.modelName}</span>
-                    <span>Timestamp: {prob.aiAnalysis.analyzedAt}</span>
-                  </div>
-                </div>
+                <AiDiagnosisCard
+                  aiAnalysis={prob.aiAnalysis}
+                  fieldName={field?.name}
+                  cropName={prob.crop}
+                  gpsFallback={field?.center}
+                  defaultExpanded={false}
+                />
               )}
             </div>
           );

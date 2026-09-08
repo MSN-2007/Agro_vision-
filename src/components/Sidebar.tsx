@@ -12,7 +12,8 @@ import {
   CloudSun,
   BrainCircuit,
   Bot,
-  Glasses,
+  Smartphone,
+  Sprout,
   Settings,
   ShieldCheck,
   X
@@ -71,8 +72,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'reminders', label: 'Reminders', icon: Bell },
     { id: 'weather', label: 'Weather', icon: CloudSun },
     { id: 'farm-memory', label: 'Farm Memory', icon: BrainCircuit },
-    { id: 'assistant', label: 'AgroVision Assistant', icon: Bot, badge: 'AI', badgeColor: 'bg-emerald-500 text-white' },
-    { id: 'device', label: 'Smart Glasses', icon: Glasses, badge: device.connected ? `${device.batteryLevel}%` : 'Off', badgeColor: device.connected ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600' },
+    { id: 'assistant', label: 'AgroVision Assistant', icon: Bot, badge: 'Voice', badgeColor: 'bg-emerald-600 text-white' },
+    { id: 'device', label: 'Device Companion', icon: Smartphone, badge: device.connected ? `${device.batteryLevel}%` : 'Off', badgeColor: device.connected ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600' },
     { id: 'settings', label: 'Profile & Settings', icon: Settings }
   ];
 
@@ -101,7 +102,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="p-5 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-forest-600 to-forest-800 flex items-center justify-center text-white shadow-md shadow-forest-900/10">
-              <Glasses className="w-6 h-6" />
+              <Sprout className="w-6 h-6" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
@@ -109,11 +110,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   AGRO<span className="text-forest-600">VISION</span>
                 </span>
                 <span className="text-[10px] uppercase font-bold tracking-widest px-1.5 py-0.5 rounded bg-forest-100 text-forest-700">
-                  Wearable
+                  Field OS
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 leading-tight font-medium">
-                Your Farm. Your Vision. Your AI.
+                Intelligent Mobile Farm Companion
               </p>
             </div>
           </div>
@@ -130,9 +131,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="flex items-center gap-2.5">
             <div className={`w-2.5 h-2.5 rounded-full ${device.connected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
             <div>
-              <p className="text-xs font-semibold text-forest-900">AgroVision Glasses</p>
+              <p className="text-xs font-semibold text-forest-900">Mobile Field Sync</p>
               <p className="text-[10px] text-forest-700">
-                {device.connected ? `Connected • ${device.batteryLevel}% Battery` : 'Offline'}
+                {device.connected ? `GPS & Audio Active • ${device.batteryLevel}% Battery` : 'Offline'}
               </p>
             </div>
           </div>
@@ -140,7 +141,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             onClick={() => handleNav('device')}
             className="text-[11px] font-semibold text-forest-700 hover:text-forest-900 hover:underline"
           >
-            HUD
+            Sync
           </button>
         </div>
 

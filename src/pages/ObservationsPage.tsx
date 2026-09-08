@@ -38,7 +38,7 @@ export const ObservationsPage: React.FC = () => {
 
   const handlePlayVoice = (transcript?: string) => {
     if (!transcript) return;
-    showToast('Playing Audio', 'Playing attached smart glasses voice recording', 'info');
+    showToast('Playing Audio', 'Playing voice note', 'info');
     speechService.speak(transcript);
   };
 
@@ -49,13 +49,13 @@ export const ObservationsPage: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 text-forest-700 text-xs font-bold uppercase tracking-wider">
             <Eye className="w-4 h-4" />
-            <span>Field Scouting & Hands-Free Records</span>
+            <span>Field Scouting & Observations</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">
             Farm Observations
           </h1>
           <p className="text-xs sm:text-sm text-slate-500">
-            Recorded automatically via AgroVision smart glasses voice commands, photos, and manual entries.
+            Recorded via voice commands, geotagged camera captures, and scouting notes.
           </p>
         </div>
 
@@ -129,7 +129,7 @@ export const ObservationsPage: React.FC = () => {
                       className="w-full h-full object-cover"
                     />
                     <span className="absolute bottom-2 left-2 text-[9px] font-bold bg-black/60 text-white px-2 py-0.5 rounded backdrop-blur-xs">
-                      {obs.source === 'voice' ? 'Smart Glasses' : 'Photo Upload'}
+                      {obs.source === 'voice' ? 'Voice Note' : 'Field Photo'}
                     </span>
                   </div>
                 )}
