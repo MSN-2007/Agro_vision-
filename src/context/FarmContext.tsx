@@ -42,8 +42,7 @@ import { parseVoiceTaskCommand, VoiceTaskResult } from '../services/voiceTaskSer
 import confetti from 'canvas-confetti';
 // ── Shared Backend API Services ──────────────────────────────────────────────
 import { farmService } from '../services/api/farmService';
-// fieldService available for future direct field mutations
-// import { fieldService } from '../services/api/fieldService';
+
 import { taskService } from '../services/api/taskService';
 import { observationService } from '../services/api/observationService';
 import { mediaService } from '../services/api/mediaService';
