@@ -139,13 +139,22 @@ export const AssistantPage: React.FC = () => {
 
                 {/* Read aloud button on assistant messages */}
                 {msg.role === 'assistant' && (
-                  <button
-                    onClick={() => speechService.speak(msg.content)}
-                    className="mt-2 text-xs font-bold text-forest-800 hover:underline flex items-center gap-1"
-                  >
-                    <Volume2 className="w-3.5 h-3.5" />
-                    <span>Play Audio</span>
-                  </button>
+                  <div className="flex items-center gap-4 mt-2">
+                    <button
+                      onClick={() => speechService.speak(msg.content)}
+                      className="text-xs font-bold text-forest-800 hover:underline flex items-center gap-1"
+                    >
+                      <Volume2 className="w-3.5 h-3.5" />
+                      <span>Play Audio</span>
+                    </button>
+                    <button
+                      onClick={() => speechService.stopSpeaking()}
+                      className="text-xs font-bold text-rose-700 hover:underline flex items-center gap-1"
+                    >
+                      <VolumeX className="w-3.5 h-3.5" />
+                      <span>Pause Audio</span>
+                    </button>
+                  </div>
                 )}
               </div>
             </div>

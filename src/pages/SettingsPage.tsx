@@ -10,18 +10,20 @@ import {
   Check,
   Droplets,
   Clock,
-  ThermometerSun
+  ThermometerSun,
+  Volume2
 } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
+import { speechService } from '../services/speechService';
 
 export const SettingsPage: React.FC = () => {
-  const { user, updateUser, wellBeing, acknowledgeHydration, showToast, currentFarm } = useFarm();
+  const { user, updateUser, wellBeing, acknowledgeHydration, triggerBreakAlert, showToast, currentFarm } = useFarm();
 
   const [name, setName] = useState(user.name);
   const [phone, setPhone] = useState(user.phone);
   const [language, setLanguage] = useState(user.preferredLanguage);
-  const [wakeWord, setWakeWord] = useState('Hey Vision');
-  const [speakingSpeed, setSpeakingSpeed] = useState('Normal (1.0x)');
+  const [wakeWord, setWakeWord] = useState(user.wakeWord || 'Hey Vision');
+  const [speakingSpeed, setSpeakingSpeed] = useState(user.speakingSpeed || '1.0x');
 
   const indianLanguages = [
     { code: 'en', name: 'English (India)' },
@@ -38,8 +40,9 @@ export const SettingsPage: React.FC = () => {
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
-    updateUser({ name, phone, preferredLanguage: language });
-    showToast('Settings Saved', 'Profile preferences updated successfully', 'success');
+    updateUser({ name, phone, preferredLanguage: language, wakeWord, speakingSpeed });
+    speechService.setRate(speakingSpeed);
+    showToast('Settings Saved', `Profile preferences and speech speed (${speakingSpeed}) updated`, 'success');
   };
 
   return (
@@ -73,13 +76,21 @@ export const SettingsPage: React.FC = () => {
             </div>
           </div>
 
-          <button
-            onClick={acknowledgeHydration}
-            className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-sm flex items-center gap-2 transition-colors self-start sm:self-auto"
-          >
-            <Droplets className="w-4 h-4" />
-            <span>Log Hydration Break</span>
-          </button>
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <button
+              onClick={triggerBreakAlert}
+              className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-sm flex items-center gap-2 transition-colors"
+            >
+              <span>Simulate Break Alert</span>
+            </button>
+            <button
+              onClick={acknowledgeHydration}
+              className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-sm flex items-center gap-2 transition-colors"
+            >
+              <Droplets className="w-4 h-4" />
+              <span>Log Hydration Break</span>
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 text-xs">
@@ -181,18 +192,88 @@ export const SettingsPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Speaking Speed
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Speaking Speed
+                  </label>
+                  <span className="text-[10px] font-bold text-forest-700 bg-forest-50 px-2 py-0.5 rounded-md border border-forest-200">
+                    Active: {speakingSpeed}
+                  </span>
+                </div>
                 <select
                   value={speakingSpeed}
-                  onChange={e => setSpeakingSpeed(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-forest-500 focus:outline-none"
+                  onChange={e => {
+                    const val = e.target.value;
+                    setSpeakingSpeed(val);
+                    speechService.setRate(val);
+                    updateUser({ speakingSpeed: val });
+                  }}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-forest-500 focus:outline-none bg-white font-medium"
                 >
-                  <option>Gentle (0.9x)</option>
-                  <option>Normal (1.0x)</option>
-                  <option>Fast (1.2x)</option>
+                  <option value="0.5x">0.5x (Slow)</option>
+                  <option value="1.0x">1.0x (Normal)</option>
+                  <option value="1.25x">1.25x (Moderate)</option>
+                  <option value="1.5x">1.5x (Fast)</option>
+                  <option value="2.0x">2.0x (Very Fast)</option>
                 </select>
+
+                <div className="mt-2.5 flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      speechService.setRate(speakingSpeed);
+                      speechService.speak(`Speaking speed is aligned to ${speakingSpeed}. Ready for field operations.`);
+                    }}
+                    className="text-xs font-bold text-forest-800 hover:text-forest-950 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-forest-100 hover:bg-forest-200 transition-colors shadow-2xs"
+                  >
+                    <Volume2 className="w-3.5 h-3.5 text-forest-700" />
+                    <span>Test Voice Speed ({speakingSpeed})</span>
+                  </button>
+                  <span className="text-[10px] text-slate-400">
+                    Synced across app
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="pt-4 border-t border-slate-100 space-y-4">
+            <h4 className="font-extrabold text-slate-900 text-sm">Google & Workspace Integration</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-200">
+                <div>
+                  <p className="font-bold text-slate-900">Google Calendar Sync</p>
+                  <p className="text-[10px] text-slate-500">Sync farm tasks & reminders to Google Calendar</p>
+                </div>
+                <button type="button" className="px-3 py-1 rounded-xl bg-slate-200 text-slate-700 font-bold hover:bg-slate-300 transition-colors">Connect</button>
+              </div>
+
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-200">
+                <div>
+                  <p className="font-bold text-slate-900">Google Assistant</p>
+                  <p className="text-[10px] text-slate-500">Enable voice access via Google Assistant on mobile</p>
+                </div>
+                <button type="button" className="px-3 py-1 rounded-xl bg-slate-200 text-slate-700 font-bold hover:bg-slate-300 transition-colors">Connect</button>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-slate-100 space-y-4">
+            <h4 className="font-extrabold text-slate-900 text-sm">Accessibility (Disabled Farmer Support)</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-200">
+                <div>
+                  <p className="font-bold text-slate-900">Gesture Control</p>
+                  <p className="text-[10px] text-slate-500">Enable head-nod and hand-swipe camera recognition</p>
+                </div>
+                <span className="px-3 py-1 rounded-xl bg-emerald-100 text-emerald-800 font-bold cursor-pointer">Enabled</span>
+              </div>
+
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-200">
+                <div>
+                  <p className="font-bold text-slate-900">Sign Language Translation</p>
+                  <p className="text-[10px] text-slate-500">Real-time ISL/ASL translation via dual optics</p>
+                </div>
+                <span className="px-3 py-1 rounded-xl bg-emerald-100 text-emerald-800 font-bold cursor-pointer">Enabled</span>
               </div>
             </div>
           </div>

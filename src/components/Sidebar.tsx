@@ -15,7 +15,9 @@ import {
   Glasses,
   Settings,
   ShieldCheck,
-  X
+  X,
+  CloudRain,
+  Sprout
 } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 
@@ -30,6 +32,7 @@ export type PageId =
   | 'tasks'
   | 'reminders'
   | 'weather'
+  | 'guidance'
   | 'farm-memory'
   | 'assistant'
   | 'device'
@@ -48,7 +51,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpen,
   onClose
 }) => {
-  const { device, tasks, problems, observations } = useFarm();
+  const { device, tasks, problems, observations, reminders } = useFarm();
 
   const pendingTasks = tasks.filter(t => t.status === 'Pending').length;
   const unresolvedProblems = problems.filter(p => p.status !== 'Resolved').length;
@@ -62,14 +65,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   }> = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'farms', label: 'My Farms', icon: Trees },
-    { id: 'map', label: 'Farm Map & Boundary', icon: MapPin },
     { id: 'crop-health', label: 'Crop Health', icon: HeartPulse },
     { id: 'observations', label: 'Observations', icon: Eye, badge: observations.length },
     { id: 'media', label: 'Photos & Videos', icon: Camera },
     { id: 'problems', label: 'Problems & Alerts', icon: AlertTriangle, badge: unresolvedProblems, badgeColor: 'bg-amber-500 text-white' },
-    { id: 'tasks', label: 'Tasks', icon: CheckSquare, badge: pendingTasks, badgeColor: 'bg-forest-600 text-white' },
-    { id: 'reminders', label: 'Reminders', icon: Bell },
-    { id: 'weather', label: 'Weather', icon: CloudSun },
+    { id: 'tasks', label: 'Tasks & Reminders', icon: CheckSquare, badge: pendingTasks + reminders.length > 0 ? pendingTasks + reminders.length : undefined, badgeColor: 'bg-forest-600 text-white' },
+    { id: 'weather', label: 'Weather & Spray', icon: CloudRain },
+    { id: 'guidance', label: 'Farm Guidance', icon: Sprout },
     { id: 'farm-memory', label: 'Farm Memory', icon: BrainCircuit },
     { id: 'assistant', label: 'AgroVision Assistant', icon: Bot, badge: 'AI', badgeColor: 'bg-emerald-500 text-white' },
     { id: 'device', label: 'Smart Glasses', icon: Glasses, badge: device.connected ? `${device.batteryLevel}%` : 'Off', badgeColor: device.connected ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600' },
@@ -146,14 +148,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Navigation List */}
         <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
-          {navItems.map(item => {
+          {navItems.map((item, index) => {
             const Icon = item.icon;
-            const active = currentPage === item.id;
+            const active =
+              currentPage === item.id ||
+              (item.id === 'tasks' && currentPage === 'reminders') ||
+              (item.id === 'farms' && currentPage === 'map');
             return (
               <button
                 key={item.id}
                 onClick={() => handleNav(item.id)}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                style={{ animationDelay: `${index * 40}ms` }}
+                className={`animate-slide-in w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
                   active
                     ? 'bg-forest-600 text-white shadow-sm shadow-forest-900/20 font-semibold'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'

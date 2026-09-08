@@ -20,7 +20,9 @@ export const INITIAL_USER: FarmerUser = {
   phone: '+91 98450 12890',
   preferredLanguage: 'English',
   defaultFarmId: 'farm-gv-01',
-  avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80'
+  avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+  speakingSpeed: '1.0x',
+  wakeWord: 'Hey Vision'
 };
 
 export const INITIAL_FARMS: Farm[] = [
@@ -124,7 +126,7 @@ export const INITIAL_OBSERVATIONS: Observation[] = [
     status: 'Needs Attention',
     voiceAudioUrl: 'voice-note-mango-chlorosis.mp3',
     voiceTranscript: '“Hey Vision, the mango leaves on the northeast tree cluster are turning yellow.”',
-    mediaUrl: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=800&auto=format&fit=crop&q=80',
+    mediaUrl: '/mango_field.jpg',
     mediaType: 'photo',
     associatedProblemId: 'prob-01'
   },
@@ -140,7 +142,7 @@ export const INITIAL_OBSERVATIONS: Observation[] = [
     timestamp: '2 days ago • 04:15 PM',
     source: 'photo',
     status: 'Under Investigation',
-    mediaUrl: 'https://images.unsplash.com/photo-1592417817098-8f3d6910985b?w=800&auto=format&fit=crop&q=80',
+    mediaUrl: '/tomato_field.jpg',
     mediaType: 'photo'
   },
   {
@@ -155,7 +157,7 @@ export const INITIAL_OBSERVATIONS: Observation[] = [
     timestamp: '3 days ago • 08:45 AM',
     source: 'manual',
     status: 'Resolved',
-    mediaUrl: 'https://images.unsplash.com/photo-1464965911861-746a04b4bca6?w=800&auto=format&fit=crop&q=80',
+    mediaUrl: 'https://upload.wikimedia.org/wikipedia/commons/0/07/Strawberry_field.jpg',
     mediaType: 'photo'
   }
 ];
@@ -167,8 +169,8 @@ export const INITIAL_MEDIA: MediaItem[] = [
     fieldId: 'field-mango-01',
     crop: 'Mango',
     type: 'photo',
-    url: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=1000&auto=format&fit=crop&q=80',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&auto=format&fit=crop&q=80',
+    url: '/mango_field.jpg',
+    thumbnailUrl: '/mango_field.jpg',
     caption: 'Suspected fungal discoloration on mango foliage',
     timestamp: 'Yesterday • 10:32 AM',
     location: { lat: 13.2992, lng: 77.5348 },
@@ -181,8 +183,8 @@ export const INITIAL_MEDIA: MediaItem[] = [
     fieldId: 'field-tomato-02',
     crop: 'Tomato',
     type: 'photo',
-    url: 'https://images.unsplash.com/photo-1592417817098-8f3d6910985b?w=1000&auto=format&fit=crop&q=80',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1592417817098-8f3d6910985b?w=400&auto=format&fit=crop&q=80',
+    url: '/tomato_field.jpg',
+    thumbnailUrl: '/tomato_field.jpg',
     caption: 'Tomato vine inspected during morning walkthrough',
     timestamp: '2 days ago • 04:15 PM',
     location: { lat: 13.2962, lng: 77.5349 },
@@ -195,8 +197,8 @@ export const INITIAL_MEDIA: MediaItem[] = [
     fieldId: 'field-strawberry-03',
     crop: 'Strawberry',
     type: 'photo',
-    url: 'https://images.unsplash.com/photo-1464965911861-746a04b4bca6?w=1000&auto=format&fit=crop&q=80',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1464965911861-746a04b4bca6?w=400&auto=format&fit=crop&q=80',
+    url: 'https://upload.wikimedia.org/wikipedia/commons/0/07/Strawberry_field.jpg',
+    thumbnailUrl: 'https://upload.wikimedia.org/wikipedia/commons/0/07/Strawberry_field.jpg',
     caption: 'Healthy strawberry foliage and early berry set',
     timestamp: '3 days ago • 08:45 AM',
     location: { lat: 13.2978, lng: 77.5382 },
@@ -209,8 +211,8 @@ export const INITIAL_MEDIA: MediaItem[] = [
     fieldId: 'field-mango-01',
     crop: 'Mango',
     type: 'video',
-    url: 'https://images.unsplash.com/photo-1550258987-190a2d41a8ba?w=1000&auto=format&fit=crop&q=80',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1550258987-190a2d41a8ba?w=400&auto=format&fit=crop&q=80',
+    url: '/mango_field.jpg',
+    thumbnailUrl: '/mango_field.jpg',
     caption: 'AgroVision 15s canopy inspection clip',
     timestamp: 'Yesterday • 10:35 AM',
     location: { lat: 13.2995, lng: 77.5350 },
@@ -226,7 +228,7 @@ export const INITIAL_PROBLEMS: ProblemReport[] = [
     crop: 'Mango',
     reportedAt: 'Yesterday • 10:32 AM',
     farmerNote: '“Leaves look unusual and yellowing with small necrotic edges.”',
-    imageUrl: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=800&auto=format&fit=crop&q=80',
+    imageUrl: '/mango_field.jpg',
     status: 'AI Analyzed',
     aiAnalysis: {
       detectedCrop: 'Mango (Mangifera indica)',
@@ -245,7 +247,7 @@ export const INITIAL_PROBLEMS: ProblemReport[] = [
     crop: 'Tomato',
     reportedAt: '3 days ago • 11:20 AM',
     farmerNote: '“Lower leaves showing concentric dark rings.”',
-    imageUrl: 'https://images.unsplash.com/photo-1592417817098-8f3d6910985b?w=800&auto=format&fit=crop&q=80',
+    imageUrl: '/tomato_field.jpg',
     status: 'Action Taken',
     aiAnalysis: {
       detectedCrop: 'Tomato (Solanum lycopersicum)',

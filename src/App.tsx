@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { FarmProvider, useFarm } from './context/FarmContext';
 import { Sidebar, PageId } from './components/Sidebar';
 import { Header } from './components/Header';
-import { DemoBar } from './components/DemoBar';
 import { ToastContainer } from './components/ToastContainer';
 import { MorningBriefingModal } from './components/MorningBriefingModal';
 import { NotificationDrawer } from './components/NotificationDrawer';
@@ -24,6 +23,7 @@ import { FarmMemoryPage } from './pages/FarmMemoryPage';
 import { AssistantPage } from './pages/AssistantPage';
 import { DevicePage } from './pages/DevicePage';
 import { SettingsPage } from './pages/SettingsPage';
+import { FarmGuidancePage } from './pages/FarmGuidancePage';
 
 // Mobile Bottom Navigation icons
 import {
@@ -31,13 +31,13 @@ import {
   MapPin,
   Camera,
   Bot,
-  CheckSquare
+  CheckSquare,
+  Trees
 } from 'lucide-react';
 
 const AppContent: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<PageId>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isDemoBarOpen, setIsDemoBarOpen] = useState(true); // Open by default for easy demoing!
   const [selectedFieldForDetail, setSelectedFieldForDetail] = useState<Field | null>(null);
 
   const handleSelectField = (field: Field) => {
@@ -56,8 +56,6 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#F8FAF7] flex flex-col font-sans">
-      {/* 1. Interactive Demo Mode Hardware Simulator Banner */}
-      <DemoBar isOpen={isDemoBarOpen} onClose={() => setIsDemoBarOpen(false)} />
 
       <div className="flex flex-1">
         {/* 2. Left Sidebar Navigation */}
@@ -73,12 +71,10 @@ const AppContent: React.FC = () => {
           {/* Header */}
           <Header
             onOpenSidebar={() => setIsSidebarOpen(true)}
-            isDemoOpen={isDemoBarOpen}
-            setIsDemoOpen={setIsDemoBarOpen}
           />
 
-          {/* Page Routing */}
-          <main className="flex-1 p-4 sm:p-6 lg:p-8">
+          {/* Page Routing with Slide Animation */}
+          <main className="flex-1 p-4 sm:p-6 lg:p-8 animate-slide-in relative">
             {selectedFieldForDetail ? (
               <FieldDetailPage
                 field={selectedFieldForDetail}
@@ -86,24 +82,24 @@ const AppContent: React.FC = () => {
                 onOpenMap={() => navigateToPage('map')}
               />
             ) : (
-              <>
-                {currentPage === 'dashboard' && <DashboardPage onNavigate={navigateToPage} />}
-                {currentPage === 'farms' && (
-                  <FarmsPage onSelectField={handleSelectField} onNavigate={navigateToPage} />
-                )}
-                {currentPage === 'map' && <MapPage />}
-                {currentPage === 'crop-health' && <CropHealthPage />}
-                {currentPage === 'observations' && <ObservationsPage />}
-                {currentPage === 'media' && <MediaPage />}
-                {currentPage === 'problems' && <ProblemsPage />}
-                {currentPage === 'tasks' && <TasksPage />}
-                {currentPage === 'reminders' && <RemindersPage />}
-                {currentPage === 'weather' && <WeatherPage />}
-                {currentPage === 'farm-memory' && <FarmMemoryPage />}
-                {currentPage === 'assistant' && <AssistantPage />}
-                {currentPage === 'device' && <DevicePage />}
-                {currentPage === 'settings' && <SettingsPage />}
-              </>
+                <div key={currentPage} className="animate-slide-in">
+                  {currentPage === 'dashboard' && <DashboardPage onNavigate={navigateToPage} />}
+                  {(currentPage === 'farms' || currentPage === 'map') && (
+                    <FarmsPage onSelectField={handleSelectField} onNavigate={navigateToPage} />
+                  )}
+                  {currentPage === 'crop-health' && <CropHealthPage />}
+                  {currentPage === 'observations' && <ObservationsPage />}
+                  {currentPage === 'media' && <MediaPage />}
+                  {currentPage === 'problems' && <ProblemsPage />}
+                  {currentPage === 'tasks' && <TasksPage initialTab="all" />}
+                  {currentPage === 'reminders' && <TasksPage initialTab="reminders" />}
+                  {currentPage === 'weather' && <WeatherPage />}
+                  {currentPage === 'guidance' && <FarmGuidancePage />}
+                  {currentPage === 'farm-memory' && <FarmMemoryPage />}
+                  {currentPage === 'assistant' && <AssistantPage />}
+                  {currentPage === 'device' && <DevicePage />}
+                  {currentPage === 'settings' && <SettingsPage />}
+                </div>
             )}
           </main>
 
@@ -120,13 +116,13 @@ const AppContent: React.FC = () => {
             </button>
 
             <button
-              onClick={() => navigateToPage('map')}
+              onClick={() => navigateToPage('farms')}
               className={`flex flex-col items-center gap-0.5 text-[10px] font-bold ${
-                currentPage === 'map' ? 'text-forest-700' : 'text-slate-400'
+                currentPage === 'farms' || currentPage === 'map' ? 'text-forest-700' : 'text-slate-400'
               }`}
             >
-              <MapPin className="w-5 h-5" />
-              <span>Map</span>
+              <Trees className="w-5 h-5" />
+              <span>Farms</span>
             </button>
 
             <button

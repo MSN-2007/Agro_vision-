@@ -14,6 +14,7 @@ import {
 import { useFarm } from '../context/FarmContext';
 import { Field } from '../types/agro';
 import { PageId } from '../components/Sidebar';
+import { FarmMapNotchBox } from '../components/FarmMapNotchBox';
 
 interface FarmsPageProps {
   onSelectField: (field: Field) => void;
@@ -222,6 +223,9 @@ export const FarmsPage: React.FC<FarmsPageProps> = ({ onSelectField, onNavigate 
           </div>
         </div>
       </div>
+
+      {/* Farm Map & Boundaries in Contained Notch Box */}
+      <FarmMapNotchBox onSelectField={onSelectField} />
 
       {/* Fields List */}
       <div>

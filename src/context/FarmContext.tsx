@@ -114,6 +114,7 @@ interface FarmContextType {
   // Well-being
   wellBeing: WellBeingMetric;
   acknowledgeHydration: () => void;
+  triggerBreakAlert: () => void;
 
   // Notifications
   notifications: FarmNotification[];
@@ -172,19 +173,66 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return findContainingField({ lat: 13.2990, lng: 77.5345 }, currentFarm?.fields || []);
   });
 
+  const sanitizeFarmImages = (url?: string) => {
+    if (!url) return url;
+    if (
+      url.includes('photo-1596755094514') ||
+      url.includes('photo-1550258987') ||
+      url.includes('Mango_leaves') ||
+      url.includes('Mango_tree_in_Kerala')
+    ) {
+      return '/mango_field.jpg';
+    }
+    if (
+      url.includes('Tomato_plant') ||
+      url.includes('photo-1592417817098')
+    ) {
+      return '/tomato_field.jpg';
+    }
+    return url;
+  };
+
   const [observations, setObservations] = useState<Observation[]>(() => {
     const saved = localStorage.getItem('agrovision_obs');
-    return saved ? JSON.parse(saved) : INITIAL_OBSERVATIONS;
+    if (saved) {
+      try {
+        const parsed: Observation[] = JSON.parse(saved);
+        return parsed.map(o => ({ ...o, mediaUrl: sanitizeFarmImages(o.mediaUrl) }));
+      } catch {
+        return INITIAL_OBSERVATIONS;
+      }
+    }
+    return INITIAL_OBSERVATIONS;
   });
 
   const [mediaItems, setMediaItems] = useState<MediaItem[]>(() => {
     const saved = localStorage.getItem('agrovision_media');
-    return saved ? JSON.parse(saved) : INITIAL_MEDIA;
+    if (saved) {
+      try {
+        const parsed: MediaItem[] = JSON.parse(saved);
+        return parsed.map(m => ({
+          ...m,
+          url: sanitizeFarmImages(m.url) || '/mango_field.jpg',
+          thumbnailUrl: sanitizeFarmImages(m.thumbnailUrl) || '/mango_field.jpg'
+        }));
+      } catch {
+        return INITIAL_MEDIA;
+      }
+    }
+    return INITIAL_MEDIA;
   });
 
   const [problems, setProblems] = useState<ProblemReport[]>(() => {
     const saved = localStorage.getItem('agrovision_problems');
-    return saved ? JSON.parse(saved) : INITIAL_PROBLEMS;
+    if (saved) {
+      try {
+        const parsed: ProblemReport[] = JSON.parse(saved);
+        return parsed.map(p => ({ ...p, imageUrl: sanitizeFarmImages(p.imageUrl) }));
+      } catch {
+        return INITIAL_PROBLEMS;
+      }
+    }
+    return INITIAL_PROBLEMS;
   });
 
   const [tasks, setTasks] = useState<FarmTask[]>(() => {
@@ -211,6 +259,13 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isBriefingModalOpen, setIsBriefingModalOpen] = useState<boolean>(false);
 
   // Sync to localStorage
+  useEffect(() => {
+    localStorage.setItem('agrovision_user', JSON.stringify(user));
+    if (user.speakingSpeed) {
+      speechService.setRate(user.speakingSpeed);
+    }
+  }, [user]);
+
   useEffect(() => {
     localStorage.setItem('agrovision_farms', JSON.stringify(farms));
   }, [farms]);
@@ -249,6 +304,29 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setToasts(prev => prev.filter(t => t.id !== newToast.id));
     }, 5500);
   }, []);
+
+  // Alert for approaching tasks
+  useEffect(() => {
+    const alerted = sessionStorage.getItem('agrovision_tasks_alert_shown');
+    if (alerted) return;
+
+    const approachingTasks = tasks.filter(t => t.status === 'Pending' && (t.dueDate === 'Today' || t.dueDate === 'Tomorrow'));
+    if (approachingTasks.length > 0) {
+      sessionStorage.setItem('agrovision_tasks_alert_shown', 'true');
+      setTimeout(() => {
+        showToast('Approaching Tasks', `You have ${approachingTasks.length} task(s) due Today/Tomorrow.`, 'warning');
+        setNotifications(prev => [{
+          id: 'notif-task-alert-' + Date.now(),
+          type: 'Task',
+          title: 'Upcoming Tasks Reminder',
+          message: `You have ${approachingTasks.length} task(s) approaching their due date.`,
+          timestamp: 'Just now',
+          read: false,
+          fieldId: null
+        }, ...prev]);
+      }, 2500);
+    }
+  }, [tasks, showToast]);
 
   const dismissToast = (id: string) => {
     setToasts(prev => prev.filter(t => t.id !== id));
@@ -625,6 +703,10 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const nextStatus: TaskStatus = t.status === 'Completed' ? 'Pending' : 'Completed';
         if (nextStatus === 'Completed') {
           confetti({ particleCount: 30, spread: 50, origin: { y: 0.8 } });
+          speechService.playSuccessChime();
+          showToast('Task Completed', `"${t.title}" marked as done!`, 'success');
+        } else {
+          showToast('Task Reopened', `"${t.title}" moved back to pending`, 'info');
         }
         return { ...t, status: nextStatus };
       }
@@ -684,6 +766,22 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       nextHydrationTime: 'In 45 minutes'
     }));
     showToast('Hydration Logged', 'Stay hydrated during farm work!', 'success');
+  };
+
+  const triggerBreakAlert = () => {
+    showToast('Break Alert', 'You have been working for over 4 hours. Please take a 15 minute rest in the shade.', 'warning');
+    speechService.speak('Safety alert. You have been working for over 4 hours in the field. Please take a 15 minute rest in the shade.');
+    
+    const newNotif: FarmNotification = {
+      id: 'notif-' + Date.now(),
+      type: 'Device',
+      title: 'Break Alert',
+      message: 'Continuous working hours exceeded. Take a rest.',
+      timestamp: 'Just now',
+      read: false,
+      fieldId: null
+    };
+    setNotifications(prev => [newNotif, ...prev]);
   };
 
   const markNotificationRead = (id: string) => {
@@ -780,14 +878,16 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setTimeout(() => {
       const field = currentField;
       const fieldName = field ? field.name : 'No registered field';
+      const isTomato = field && field.crop.toLowerCase().includes('tomato');
+      const photoUrl = isTomato ? '/tomato_field.jpg' : '/mango_field.jpg';
       
       addMediaItem({
         farmId: currentFarm.id,
         fieldId: field ? field.id : null,
         crop: field ? field.crop : 'Unassigned',
         type: 'photo',
-        url: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=1000&auto=format&fit=crop&q=80',
-        thumbnailUrl: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&auto=format&fit=crop&q=80',
+        url: photoUrl,
+        thumbnailUrl: photoUrl,
         caption: `Capture in ${fieldName}`,
         location: currentGps,
         aiAnalyzed: false
@@ -814,7 +914,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         fieldId: targetField ? targetField.id : null,
         source: 'voice',
         voiceTranscript: '“Hey Vision, the mango leaves are turning yellow.”',
-        mediaUrl: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=800&auto=format&fit=crop&q=80'
+        mediaUrl: '/mango_field.jpg'
       });
 
       speechService.speak(`Observation recorded for ${targetField?.name || 'current location'}.`);
@@ -828,19 +928,26 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setTimeout(() => {
       const field = currentField || currentFarm.fields[0];
       if (field) {
+        const isTomato = field.crop.toLowerCase().includes('tomato');
         addProblemReport({
           fieldId: field.id,
           farmId: currentFarm.id,
           crop: field.crop,
-          farmerNote: '“Leaves look unusual with dark necrotic specks.”',
-          imageUrl: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=800&auto=format&fit=crop&q=80',
+          farmerNote: isTomato
+            ? '“Lower leaves showing concentric dark rings.”'
+            : '“Leaves look unusual with dark necrotic specks.”',
+          imageUrl: isTomato ? '/tomato_field.jpg' : '/mango_field.jpg',
           status: 'AI Analyzed',
           aiAnalysis: {
             detectedCrop: field.crop,
-            possibleDisease: 'Anthracnose (Colletotrichum gloeosporioides)',
-            confidence: 87,
+            possibleDisease: isTomato
+              ? 'Early Blight (Alternaria solani)'
+              : 'Anthracnose (Colletotrichum gloeosporioides)',
+            confidence: isTomato ? 92 : 87,
             severity: 'Moderate',
-            recommendedAction: 'Inspect affected branch cluster. Prune affected leaves. Apply Copper Oxychloride (0.3%) before rain.',
+            recommendedAction: isTomato
+              ? 'Prune lower affected foliage and apply Mancozeb (0.25%) or Chlorothalonil before high humidity forecast.'
+              : 'Inspect affected branch cluster. Prune affected leaves. Apply Copper Oxychloride (0.3%) before rain.',
             modelName: 'AgroVision-CropVision v3.2',
             analyzedAt: 'Just now'
           }
@@ -936,6 +1043,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         syncDevice,
         wellBeing,
         acknowledgeHydration,
+        triggerBreakAlert,
         notifications,
         markNotificationRead,
         clearNotifications,

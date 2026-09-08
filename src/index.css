@@ -15,6 +15,26 @@ body {
   padding: 0;
 }
 
+/* Global Button Interactions */
+button {
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease, opacity 0.2s ease;
+}
+
+button:hover:not(:disabled) {
+  transform: scale(1.05);
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+
 /* Custom Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
@@ -80,4 +100,21 @@ body {
 
 .soundwave-bar {
   animation: soundwave 1s ease-in-out infinite;
+}
+
+/* Page Navigation Slide Animation */
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  opacity: 0;
 }

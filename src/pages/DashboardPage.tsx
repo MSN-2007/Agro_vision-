@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Sun,
   MapPin,
@@ -7,6 +7,7 @@ import {
   CloudSun,
   AlertTriangle,
   CheckSquare,
+  CheckCircle2,
   Eye,
   Camera,
   Activity,
@@ -42,12 +43,24 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
 
   const weather = getFieldWeather(currentField?.id);
 
-  // Filter records strictly by current farm & field
-  const todayTasks = tasks.filter(t => {
-    if (t.status !== 'Pending' && !t.dueDate.toLowerCase().includes('today')) return false;
-    if (currentField && t.fieldId && t.fieldId !== currentField.id) return false;
+  const [taskScope, setTaskScope] = useState<'all' | 'field'>('all');
+
+  // Filter tasks due today for this farm
+  const farmTodayTasks = tasks.filter(t => {
+    const matchesFarm = currentFarm.fields.some(f => f.id === t.fieldId) || !t.fieldId;
+    if (!matchesFarm) return false;
+    return t.dueDate.toLowerCase().includes('today');
+  });
+
+  const todayTasks = farmTodayTasks.filter(t => {
+    if (taskScope === 'field' && currentField && t.fieldId) {
+      return t.fieldId === currentField.id;
+    }
     return true;
   });
+
+  const completedTodayCount = todayTasks.filter(t => t.status === 'Completed').length;
+  const pendingTodayCount = todayTasks.filter(t => t.status === 'Pending').length;
 
   const activeAlerts = problems.filter(p => {
     if (p.status === 'Resolved') return false;
@@ -387,52 +400,119 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
 
           {/* C. Today's Tasks */}
           <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <CheckSquare className="w-5 h-5 text-forest-600" />
                 <h3 className="font-extrabold text-slate-900 text-base">Today's Tasks</h3>
+                {pendingTodayCount > 0 && (
+                  <span className="text-[10px] font-extrabold bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full border border-amber-200">
+                    {pendingTodayCount} Due
+                  </span>
+                )}
               </div>
               <button
                 onClick={() => onNavigate('tasks')}
-                className="text-xs font-bold text-forest-700 hover:text-forest-900"
+                className="text-xs font-bold text-forest-700 hover:text-forest-900 flex items-center gap-1"
               >
-                Manage &rarr;
+                <span>Manage</span>
+                <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
 
+            {/* Scope Filter & Progress Bar */}
+            {farmTodayTasks.length > 0 && (
+              <div className="mb-3.5 space-y-2">
+                <div className="flex items-center justify-between text-xs text-slate-500">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setTaskScope('all')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                        taskScope === 'all'
+                          ? 'bg-forest-700 text-white shadow-2xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      All Farm ({farmTodayTasks.length})
+                    </button>
+                    {currentField && (
+                      <button
+                        onClick={() => setTaskScope('field')}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                          taskScope === 'field'
+                            ? 'bg-forest-700 text-white shadow-2xs'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        {currentField.name} ({farmTodayTasks.filter(t => t.fieldId === currentField.id).length})
+                      </button>
+                    )}
+                  </div>
+                  <span className="font-semibold text-slate-600 text-[11px]">
+                    {completedTodayCount}/{todayTasks.length} Done
+                  </span>
+                </div>
+
+                {/* Progress bar */}
+                <div className="w-full h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                  <div
+                    className="h-full bg-forest-600 rounded-full transition-all duration-500"
+                    style={{
+                      width: `${todayTasks.length > 0 ? (completedTodayCount / todayTasks.length) * 100 : 0}%`
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2.5">
               {todayTasks.length === 0 ? (
-                <p className="text-xs text-slate-400 text-center py-6">No tasks scheduled for this field today.</p>
+                <div className="p-6 text-center text-slate-400 text-xs border border-dashed border-slate-200 rounded-2xl">
+                  <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto mb-1.5 opacity-80" />
+                  <p className="font-bold text-slate-700">No pending tasks for today!</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Say "Hey Vision, add task" to schedule new work.</p>
+                </div>
               ) : (
-                todayTasks.map(task => (
-                  <div
-                    key={task.id}
-                    onClick={() => toggleTaskStatus(task.id)}
-                    className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${
-                      task.status === 'Completed'
-                        ? 'bg-slate-50 border-slate-200 text-slate-400 line-through'
-                        : 'bg-white border-slate-200/80 text-slate-800 hover:border-forest-400 shadow-xs'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={task.status === 'Completed'}
-                      onChange={() => toggleTaskStatus(task.id)}
-                      className="mt-0.5 rounded text-forest-600 focus:ring-forest-500 w-4 h-4 cursor-pointer"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold leading-snug">{task.title}</p>
-                      <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500">
-                        {task.voiceCreated && (
-                          <span className="text-forest-700 font-bold bg-forest-50 px-1.5 py-0.2 rounded">
-                            Voice Created
+                todayTasks.map(task => {
+                  const field = currentFarm.fields.find(f => f.id === task.fieldId);
+                  return (
+                    <div
+                      key={task.id}
+                      onClick={() => toggleTaskStatus(task.id)}
+                      className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 select-none ${
+                        task.status === 'Completed'
+                          ? 'bg-slate-50 border-slate-200 text-slate-400'
+                          : 'bg-white border-slate-200/80 text-slate-800 hover:border-forest-400 shadow-xs'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={task.status === 'Completed'}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={() => toggleTaskStatus(task.id)}
+                        className="mt-0.5 rounded text-forest-600 focus:ring-forest-500 w-4 h-4 cursor-pointer"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-xs font-bold leading-snug ${task.status === 'Completed' ? 'line-through text-slate-400' : 'text-slate-900'}`}>
+                          {task.title}
+                        </p>
+                        <div className="flex flex-wrap items-center gap-2 mt-1.5 text-[10px] text-slate-500">
+                          <span className="flex items-center gap-1 font-semibold text-forest-800 bg-forest-50 px-2 py-0.5 rounded">
+                            <MapPin className="w-3 h-3 text-forest-600" />
+                            {field?.name || 'Farm General'}
                           </span>
-                        )}
-                        <span>Due {task.dueDate}</span>
+                          {task.voiceCreated && (
+                            <span className="text-emerald-800 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">
+                              Voice Created
+                            </span>
+                          )}
+                          <span className="font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
+                            Due {task.dueDate}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>

@@ -5,7 +5,6 @@ import {
   Glasses,
   Bell,
   Volume2,
-  Sparkles,
   ChevronDown,
   Navigation
 } from 'lucide-react';
@@ -13,14 +12,10 @@ import { useFarm } from '../context/FarmContext';
 
 interface HeaderProps {
   onOpenSidebar: () => void;
-  isDemoOpen: boolean;
-  setIsDemoOpen: (open: boolean) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   onOpenSidebar,
-  isDemoOpen,
-  setIsDemoOpen
 }) => {
   const {
     currentFarm,
@@ -98,21 +93,6 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Right Side: Demo Bar Toggle + Glasses Status + Morning Briefing + Notifications */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Demo Mode Toggle Button */}
-          <button
-            onClick={() => setIsDemoOpen(!isDemoOpen)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition-all shadow-sm ${
-              isDemoOpen
-                ? 'bg-amber-500 text-white shadow-amber-500/20'
-                : 'bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Demo Mode</span>
-            <span className="hidden sm:inline text-[10px] px-1.5 py-0.2 bg-black/10 rounded">
-              {isDemoOpen ? 'Hide' : 'Simulate'}
-            </span>
-          </button>
 
           {/* Morning Briefing Audio Button */}
           <button

@@ -79,7 +79,11 @@ export const DevicePage: React.FC = () => {
             <div>
               <h2 className="text-xl font-extrabold">{device.model}</h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                Dual 12MP Ultra-wide Optics • Quad Noise-Cancelling Microphones
+                Upgraded 1080p Dual Optics (Medium-High Spec) • Quad Noise-Cancelling Microphones
+              </p>
+              <p className="text-[10px] text-emerald-400 mt-1 font-semibold flex items-center justify-center gap-1">
+                <Cpu className="w-3 h-3" />
+                USB-C Fast Charging Supported
               </p>
             </div>
           </div>
@@ -93,7 +97,7 @@ export const DevicePage: React.FC = () => {
                 <span>Battery Level</span>
               </div>
               <p className="text-2xl font-black text-white">{device.batteryLevel}%</p>
-              <p className="text-[10px] text-slate-300 mt-0.5">Est. 6.5 hours remaining</p>
+              <p className="text-[10px] text-slate-300 mt-0.5">16 Hours (Extended Backup)</p>
             </div>
 
             {/* Bluetooth */}
@@ -127,7 +131,7 @@ export const DevicePage: React.FC = () => {
                 <span>Dual Optics</span>
               </div>
               <p className="text-2xl font-black text-white">{device.cameraStatus}</p>
-              <p className="text-[10px] text-slate-300 mt-0.5">HDR Hands-Free Shutter</p>
+              <p className="text-[10px] text-slate-300 mt-0.5">Upgraded 1080p Medium-High Spec</p>
             </div>
 
             {/* Mic */}

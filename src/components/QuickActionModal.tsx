@@ -71,13 +71,16 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
 
   const handleCapturePhoto = () => {
     const fieldName = currentField ? currentField.name : 'Mango Plantation';
+    const isTomato = currentField && currentField.crop.toLowerCase().includes('tomato');
+    const photoUrl = isTomato ? '/tomato_field.jpg' : '/mango_field.jpg';
+
     addMediaItem({
       farmId: currentFarm.id,
       fieldId: currentField ? currentField.id : 'field-mango-01',
       crop: currentField ? currentField.crop : 'Mango',
       type: 'photo',
-      url: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=1000&auto=format&fit=crop&q=80',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&auto=format&fit=crop&q=80',
+      url: photoUrl,
+      thumbnailUrl: photoUrl,
       caption: `Captured in ${fieldName} via AgroVision Glasses`,
       location: currentGps,
       aiAnalyzed: false
@@ -88,13 +91,16 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
 
   const handleRecordVideo = () => {
     const fieldName = currentField ? currentField.name : 'Mango Plantation';
+    const isTomato = currentField && currentField.crop.toLowerCase().includes('tomato');
+    const videoThumb = isTomato ? '/tomato_field.jpg' : '/mango_field.jpg';
+
     addMediaItem({
       farmId: currentFarm.id,
       fieldId: currentField ? currentField.id : 'field-mango-01',
       crop: currentField ? currentField.crop : 'Mango',
       type: 'video',
-      url: 'https://images.unsplash.com/photo-1550258987-190a2d41a8ba?w=1000&auto=format&fit=crop&q=80',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1550258987-190a2d41a8ba?w=400&auto=format&fit=crop&q=80',
+      url: videoThumb,
+      thumbnailUrl: videoThumb,
       caption: `15s canopy inspection clip in ${fieldName}`,
       location: currentGps,
       aiAnalyzed: false
@@ -106,11 +112,13 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
   const handleSubmitObservation = (e: React.FormEvent) => {
     e.preventDefault();
     if (!obsTitle.trim()) return;
+    const isTomato = currentField && currentField.crop.toLowerCase().includes('tomato');
+
     addObservation({
       title: obsTitle,
       notes: obsNotes,
       source: 'manual',
-      mediaUrl: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=800&auto=format&fit=crop&q=80'
+      mediaUrl: isTomato ? '/tomato_field.jpg' : '/mango_field.jpg'
     });
     onClose();
   };
@@ -172,7 +180,7 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
             <div className="text-center space-y-4">
               <div className="relative rounded-2xl overflow-hidden aspect-video bg-slate-900 flex items-center justify-center">
                 <img
-                  src="https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=600&auto=format&fit=crop&q=80"
+                  src={currentField && currentField.crop.toLowerCase().includes('tomato') ? '/tomato_field.jpg' : '/mango_field.jpg'}
                   alt="Crop Preview"
                   className="w-full h-full object-cover opacity-80"
                 />
@@ -207,7 +215,7 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
             <div className="text-center space-y-4">
               <div className="relative rounded-2xl overflow-hidden aspect-video bg-slate-900 flex items-center justify-center">
                 <img
-                  src="https://images.unsplash.com/photo-1550258987-190a2d41a8ba?w=600&auto=format&fit=crop&q=80"
+                  src="/mango_field.jpg"
                   alt="Video Preview"
                   className="w-full h-full object-cover opacity-80"
                 />

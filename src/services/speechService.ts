@@ -3,11 +3,46 @@
 class SpeechService {
   private synth: SpeechSynthesis | null = null;
   private audioCtx: AudioContext | null = null;
+  private rate: number = 1.0;
 
   constructor() {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       this.synth = window.speechSynthesis;
     }
+    if (typeof window !== 'undefined') {
+      const savedRate = localStorage.getItem('agrovision_speaking_speed');
+      if (savedRate) {
+        const parsed = parseFloat(savedRate.replace('x', ''));
+        if (!isNaN(parsed) && parsed > 0) {
+          this.rate = parsed;
+        }
+      }
+    }
+  }
+
+  /**
+   * Set speaking speed using either number or string slab (0.5x, 1.0x, 1.25x, 1.5x, 2.0x)
+   */
+  setRate(speed: string | number) {
+    const numeric = typeof speed === 'string' ? parseFloat(speed.replace('x', '')) : speed;
+    if (!isNaN(numeric) && numeric > 0) {
+      this.rate = numeric;
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('agrovision_speaking_speed', `${numeric}x`);
+        } catch {
+          // Ignore storage restrictions
+        }
+      }
+    }
+  }
+
+  getRate(): number {
+    return this.rate;
+  }
+
+  getRateString(): string {
+    return `${this.rate}x`;
   }
 
   private getAudioContext(): AudioContext {
@@ -33,7 +68,7 @@ class SpeechService {
     try {
       this.synth.cancel(); // Stop any pending speech
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1.0;
+      utterance.rate = this.rate;
       utterance.pitch = 1.0;
       utterance.volume = 0.9;
       
@@ -58,6 +93,18 @@ class SpeechService {
   stopSpeaking() {
     if (this.synth) {
       this.synth.cancel();
+    }
+  }
+
+  pauseSpeaking() {
+    if (this.synth && this.synth.speaking && !this.synth.paused) {
+      this.synth.pause();
+    }
+  }
+
+  resumeSpeaking() {
+    if (this.synth && this.synth.paused) {
+      this.synth.resume();
     }
   }
 

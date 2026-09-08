@@ -51,6 +51,8 @@ export interface FarmerUser {
   preferredLanguage: string;
   defaultFarmId: string;
   avatarUrl: string;
+  wakeWord?: string;
+  speakingSpeed?: string;
 }
 
 export type ObservationSource = 'voice' | 'photo' | 'video' | 'manual';
