@@ -195,6 +195,25 @@
       "fieldId": "field-mango-01",
       "cropId": null,
       "crop": "Mango (Alphonso & Kesar)",
+      "title": "take a note that the leaves are turning yellow",
+      "notes": "take a note that the leaves are turning yellow",
+      "content": "take a note that the leaves are turning yellow",
+      "latitude": 13.299,
+      "longitude": 77.5345,
+      "timestamp": "2026-09-08T21:37:02.849Z",
+      "source": "raspberry_pi",
+      "deviceId": "AGRO_PI_001",
+      "status": "Needs Attention",
+      "id": "obse-1788903422849-7n7pb",
+      "createdAt": "2026-09-08T21:37:02.849Z",
+      "updatedAt": "2026-09-08T21:37:02.849Z"
+    },
+    {
+      "userId": "user-ravi-01",
+      "farmId": "farm-gv-01",
+      "fieldId": "field-mango-01",
+      "cropId": null,
+      "crop": "Mango (Alphonso & Kesar)",
       "title": "the leaves in northern sector are showing mild yellowing",
       "notes": "the leaves in northern sector are showing mild yellowing",
       "content": "the leaves in northern sector are showing mild yellowing",
@@ -319,6 +338,24 @@
     }
   ],
   "photos": [
+    {
+      "userId": "user-ravi-01",
+      "farmId": "farm-gv-01",
+      "fieldId": "field-mango-01",
+      "cropId": null,
+      "type": "photo",
+      "url": "/uploads/media_1788903414120_wcwcm.jpg",
+      "thumbnailUrl": "/uploads/media_1788903414120_wcwcm.jpg",
+      "caption": "Field camera capture",
+      "latitude": null,
+      "longitude": null,
+      "timestamp": "2026-09-08T21:36:54.128963Z",
+      "durationSeconds": null,
+      "source": "raspberry_pi",
+      "id": "phot-1788903414137-wdc96",
+      "createdAt": "2026-09-08T21:36:54.137Z",
+      "updatedAt": "2026-09-08T21:36:54.137Z"
+    },
     {
       "userId": "user-ravi-01",
       "farmId": "farm-gv-01",
@@ -658,10 +695,10 @@
       "name": "Device AGRO_PI_001",
       "status": "online",
       "batteryLevel": 100,
-      "lastSeen": "2026-09-08T03:21:08.212Z",
+      "lastSeen": "2026-09-08T21:37:03.020Z",
       "id": "devi-1788836734813-a5p4x",
       "createdAt": "2026-09-08T03:05:34.813Z",
-      "updatedAt": "2026-09-08T03:21:08.212Z"
+      "updatedAt": "2026-09-08T21:37:03.020Z"
     },
     {
       "deviceId": "mobile-client-01",
@@ -794,6 +831,28 @@
     }
   },
   "activity": [
+    {
+      "id": "act-1788903422858",
+      "userId": "user-ravi-01",
+      "action": "Observation Recorded",
+      "details": "take a note that the leaves are turning yellow",
+      "fieldName": "Mango Plantation",
+      "type": "observation",
+      "source": "raspberry_pi",
+      "timestamp": "Just now",
+      "createdAt": "2026-09-08T21:37:02.858Z"
+    },
+    {
+      "id": "act-1788903414148",
+      "userId": "user-ravi-01",
+      "action": "Photo Captured",
+      "details": "Field camera capture",
+      "fieldName": "Mango Plantation",
+      "type": "media",
+      "source": "raspberry_pi",
+      "timestamp": "Just now",
+      "createdAt": "2026-09-08T21:36:54.148Z"
+    },
     {
       "id": "act-1788837668558",
       "userId": "user-ravi-01",

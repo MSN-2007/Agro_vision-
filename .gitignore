@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Test media uploads generated during development
+server/uploads/*.jpg
+server/uploads/*.mp4
+server/uploads/*.webm
