@@ -46,7 +46,19 @@ export const AssistantPage: React.FC = () => {
     setInputVal('');
   };
 
-  const handleToggleVoiceInput = () => {
+  const handleTestAudio = () => {
+    speechService.playWakeChime();
+    const testPhrases: Record<SupportedLanguage, string> = {
+      en: 'AgroVision voice engine is active. Ready for farm queries.',
+      mr: 'AgroVision व्हॉइस इंजिन सक्रिय आहे. शेती प्रश्नांसाठी तयार आहे.',
+      hi: 'AgroVision वॉइस इंजन सक्रिय है। कृषि प्रश्नों के लिए तैयार है।',
+      te: 'AgroVision వాయిస్ ఇంజిన్ యాక్టివ్‌గా ఉంది. సిద్ధంగా ఉంది.'
+    };
+    speechService.speak(testPhrases[currentLanguage] || testPhrases.en, currentLanguage);
+    showToast('Audio Test', `Playing test voice in ${activeLangConfig.name}`, 'info');
+  };
+
+  const handleToggleVoiceInput = async () => {
     if (isListening) {
       speechService.stopListening();
       setIsListening(false);
@@ -64,7 +76,7 @@ export const AssistantPage: React.FC = () => {
       te: 'మీ వ్యవసాయ ప్రశ్న లేదా పని మాట్లాడండి...'
     };
 
-    const started = speechService.startListening({
+    const started = await speechService.startListening({
       lang: currentLanguage,
       onStart: () => {
         setIsListening(true);
@@ -84,7 +96,7 @@ export const AssistantPage: React.FC = () => {
       onError: (errMsg: string) => {
         setIsListening(false);
         setInterimVoiceText('');
-        showToast('Voice Error', errMsg, 'warning');
+        showToast('Voice Notice', errMsg, 'info');
       },
       onEnd: () => {
         setIsListening(false);
@@ -294,11 +306,48 @@ export const AssistantPage: React.FC = () => {
 
         {isListening && (
           <div className="flex justify-start">
-            <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-2xl px-4 py-3 text-xs font-semibold flex items-center gap-2.5 animate-pulse">
-              <Mic className="w-4 h-4 text-red-500" />
-              <span>
-                {activeLangConfig.flag} {interimVoiceText ? `"${interimVoiceText}"` : `Listening in ${activeLangConfig.nativeName}...`}
-              </span>
+            <div className="bg-rose-50 border-2 border-rose-300 text-rose-950 rounded-2xl p-3.5 text-xs font-semibold space-y-2 shadow-sm max-w-md w-full animate-pulse">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-rose-700 font-bold">
+                  <Mic className="w-4 h-4 text-rose-600 animate-bounce" />
+                  <span>Listening ({activeLangConfig.nativeName})...</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    speechService.stopListening();
+                    setIsListening(false);
+                  }}
+                  className="px-2 py-0.5 rounded bg-rose-200 hover:bg-rose-300 text-rose-900 text-[11px] font-bold"
+                >
+                  Stop
+                </button>
+              </div>
+
+              <div className="bg-white/90 rounded-lg p-2 border border-rose-200 text-slate-800 text-[11px] font-mono min-h-[28px] flex items-center">
+                {interimVoiceText ? (
+                  <span>"{interimVoiceText}"</span>
+                ) : (
+                  <span className="text-slate-400 italic">Speak now or tap a quick command below...</span>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-1 pt-1">
+                {(SUGGESTED_PROMPTS_BY_LANG[currentLanguage] || SUGGESTED_PROMPTS_BY_LANG.en).slice(0, 3).map(p => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => {
+                      speechService.stopListening();
+                      setIsListening(false);
+                      sendAssistantMessage(p);
+                    }}
+                    className="text-[10px] bg-white hover:bg-rose-100 text-rose-900 border border-rose-200 px-2 py-0.5 rounded transition-colors"
+                  >
+                    🎙️ {p}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}

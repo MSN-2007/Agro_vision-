@@ -44,7 +44,7 @@ export const TasksPage: React.FC = () => {
 
   const activeLangConfig = SUPPORTED_LANGUAGES.find(l => l.code === currentLanguage) || SUPPORTED_LANGUAGES[0];
 
-  const handleToggleVoiceTask = () => {
+  const handleToggleVoiceTask = async () => {
     if (isListening) {
       speechService.stopListening();
       setIsListening(false);
@@ -63,7 +63,7 @@ export const TasksPage: React.FC = () => {
       te: 'మాట్లాడండి: "టాస్క్ 1 పూర్తి చేయండి", "కొత్త టాస్క్ రేపు ఉదయం 10 కి", లేదా "టాస్క్ 2 తొలగించండి"'
     };
 
-    const started = speechService.startListening({
+    const started = await speechService.startListening({
       lang: currentLanguage,
       onStart: () => {
         setIsListening(true);
@@ -93,7 +93,7 @@ export const TasksPage: React.FC = () => {
       onError: (errMsg: string) => {
         setIsListening(false);
         setInterimText('');
-        showToast('Voice Recognition', errMsg, 'warning');
+        showToast('Voice Notice', errMsg, 'info');
       },
       onEnd: () => {
         setIsListening(false);

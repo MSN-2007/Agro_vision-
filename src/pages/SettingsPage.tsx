@@ -7,10 +7,15 @@ import {
   ThermometerSun,
   Key,
   Sparkles,
-  CloudSun
+  CloudSun,
+  Mic,
+  Volume2,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { geminiService } from '../services/geminiService';
+import { speechService } from '../services/speechService';
 import { getStoredWeatherKeys, saveStoredWeatherKeys } from '../services/weatherService';
 import { SUPPORTED_LANGUAGES, SupportedLanguage } from '../types/agro';
 
@@ -29,6 +34,51 @@ export const SettingsPage: React.FC = () => {
   const [backupGeminiKey, setBackupGeminiKey] = useState(initialGeminiKeys[1] || '');
   const [primaryOwmKey, setPrimaryOwmKey] = useState(initialOwmKeys[0] || '');
   const [backupOwmKey, setBackupOwmKey] = useState(initialOwmKeys[1] || '');
+
+  const [testAudioStatus, setTestAudioStatus] = useState<string | null>(null);
+  const [testMicStatus, setTestMicStatus] = useState<string | null>(null);
+
+  const handleTestSpeaker = () => {
+    speechService.playWakeChime();
+    setTestAudioStatus('Playing audio test...');
+    const testPhrases: Record<SupportedLanguage, string> = {
+      en: 'AgroVision voice test. Speaker and audio synthesis are operational.',
+      mr: 'AgroVision व्हॉइस चाचणी. स्पीकर आणि ऑडिओ कार्यरत आहे.',
+      hi: 'AgroVision वॉइस टेस्ट। स्पीकर और ऑडियो सिस्टम चालू है।',
+      te: 'AgroVision వాయిస్ టెస్ట్. స్పీకర్ మరియు ఆడియో సరిగ్గా పనిచేస్తున్నాయి.'
+    };
+    speechService.speak(testPhrases[language] || testPhrases.en, language, () => {
+      setTestAudioStatus('Voice test completed');
+      setTimeout(() => setTestAudioStatus(null), 3000);
+    });
+  };
+
+  const handleTestMicrophone = async () => {
+    speechService.playWakeChime();
+    setTestMicStatus('Listening for 4s... Speak now');
+    const started = await speechService.startListening({
+      lang: language,
+      onResult: (transcript, isFinal) => {
+        setTestMicStatus(`Heard: "${transcript}"`);
+        if (isFinal) {
+          setTimeout(() => setTestMicStatus(null), 4000);
+        }
+      },
+      onError: (err) => {
+        setTestMicStatus(`Mic test: ${err}`);
+        setTimeout(() => setTestMicStatus(null), 4000);
+      },
+      onEnd: () => {
+        setTestMicStatus(prev => prev?.startsWith('Listening') ? 'Mic test completed' : prev);
+        setTimeout(() => setTestMicStatus(null), 3000);
+      }
+    });
+
+    if (!started) {
+      setTestMicStatus('Microphone not supported in this browser');
+      setTimeout(() => setTestMicStatus(null), 4000);
+    }
+  };
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
@@ -187,6 +237,59 @@ export const SettingsPage: React.FC = () => {
                   <option>Fast (1.2x)</option>
                 </select>
               </div>
+            </div>
+
+            {/* Audio & Voice Hardware Diagnostic Card */}
+            <div className="p-4 rounded-2xl bg-forest-50/70 border border-forest-200/80 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Volume2 className="w-4 h-4 text-forest-700" />
+                  <span className="font-bold text-slate-900 text-xs uppercase tracking-wider">
+                    Audio & Voice Hardware Diagnostics
+                  </span>
+                </div>
+                <span className="text-[11px] font-semibold text-forest-800 bg-forest-100 px-2 py-0.5 rounded-md">
+                  Active Lang: {SUPPORTED_LANGUAGES.find(l => l.code === language)?.nativeName}
+                </span>
+              </div>
+
+              <p className="text-xs text-slate-600">
+                Test audio speaker output and browser microphone recognition to verify voice functionality.
+              </p>
+
+              <div className="flex flex-wrap items-center gap-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={handleTestSpeaker}
+                  className="px-3 py-2 rounded-xl bg-forest-700 hover:bg-forest-800 text-white font-semibold text-xs flex items-center gap-1.5 shadow-xs transition-colors"
+                >
+                  <Volume2 className="w-3.5 h-3.5" />
+                  <span>Test Speaker Output</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleTestMicrophone}
+                  className="px-3 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 font-semibold text-xs flex items-center gap-1.5 shadow-2xs transition-colors"
+                >
+                  <Mic className="w-3.5 h-3.5 text-forest-600" />
+                  <span>Test Microphone Input</span>
+                </button>
+              </div>
+
+              {testAudioStatus && (
+                <div className="p-2 rounded-xl bg-emerald-100/80 border border-emerald-200 text-emerald-900 text-xs font-semibold flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                  <span>{testAudioStatus}</span>
+                </div>
+              )}
+
+              {testMicStatus && (
+                <div className="p-2 rounded-xl bg-amber-100/80 border border-amber-200 text-amber-950 text-xs font-semibold flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                  <span>{testMicStatus}</span>
+                </div>
+              )}
             </div>
           </div>
 
