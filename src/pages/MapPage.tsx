@@ -15,11 +15,25 @@ import {
   ChevronUp,
   Maximize2,
   Crosshair,
-  Crop
+  Crop,
+  Search,
+  Compass,
+  Copy,
+  CheckCheck,
+  Loader2,
+  Landmark,
+  Building2,
+  Sparkles
 } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { LatLng, Field } from '../types/agro';
 import { calculatePolygonAreaAcres } from '../services/geofence';
+import {
+  MapLandmark,
+  searchPlacesAndLandmarks,
+  reverseGeocodePoint,
+  calculateDistanceKm
+} from '../services/geocodingService';
 
 export const MapPage: React.FC = () => {
   const {
@@ -41,6 +55,15 @@ export const MapPage: React.FC = () => {
   const polygonLayersRef = useRef<Record<string, L.Polygon>>({});
   const vertexMarkersGroupRef = useRef<L.LayerGroup | null>(null);
   const activeDrawPolygonRef = useRef<L.Polygon | null>(null);
+  const landmarkMarkerRef = useRef<L.Marker | null>(null);
+
+  // Landmark & Geocoding Search States
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<MapLandmark[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [activeLandmark, setActiveLandmark] = useState<MapLandmark | null>(null);
+  const [hasCopiedCoords, setHasCopiedCoords] = useState(false);
 
   // Map and View Mode States
   const [mapLayerType, setMapLayerType] = useState<'satellite' | 'streets'>('satellite');
@@ -362,22 +385,170 @@ export const MapPage: React.FC = () => {
     });
   }, [activePoints, editorMode, selectedVertexIndex, pushHistory]);
 
-  // 6. Map Click in Draw Mode
+  // Landmark Selection Handler
+  const handleSelectLandmark = useCallback((landmark: MapLandmark) => {
+    setActiveLandmark(landmark);
+    setIsSearchOpen(false);
+
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    map.flyTo([landmark.lat, landmark.lng], Math.max(map.getZoom(), 17), { duration: 1.2 });
+
+    if (landmarkMarkerRef.current) {
+      landmarkMarkerRef.current.remove();
+    }
+
+    const landmarkIcon = L.divIcon({
+      className: 'custom-landmark-pin',
+      html: `
+        <div style="position: relative; display: flex; align-items: center; justify-content: center; width: 36px; height: 36px;">
+          <div style="position: absolute; width: 36px; height: 36px; border-radius: 50%; background: rgba(245, 158, 11, 0.4); animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+          <div style="width: 32px; height: 32px; border-radius: 50%; background: #D97706; border: 3px solid #FFFFFF; box-shadow: 0 4px 12px rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; color: white; font-size: 14px; font-weight: bold; cursor: pointer;">
+            📍
+          </div>
+        </div>
+      `,
+      iconSize: [36, 36],
+      iconAnchor: [18, 18]
+    });
+
+    const marker = L.marker([landmark.lat, landmark.lng], { icon: landmarkIcon }).addTo(map);
+
+    marker.bindPopup(`
+      <div style="font-family: Inter, sans-serif; padding: 4px; min-width: 170px;">
+        <div style="font-size: 10px; font-weight: 800; color: #D97706; text-transform: uppercase;">
+          ${landmark.category === 'coords' ? 'Exact Coordinates' : 'Landmark Location'}
+        </div>
+        <h4 style="font-size: 13px; font-weight: 800; margin: 2px 0; color: #0F172A;">
+          ${landmark.name}
+        </h4>
+        <p style="font-size: 11px; margin: 0 0 6px 0; color: #475569;">
+          ${landmark.address}<br />
+          <strong style="color: #047857; font-family: monospace;">${landmark.lat.toFixed(5)}°, ${landmark.lng.toFixed(5)}°</strong>
+        </p>
+      </div>
+    `);
+
+    landmarkMarkerRef.current = marker;
+  }, []);
+
+  const handleClearLandmark = () => {
+    setActiveLandmark(null);
+    if (landmarkMarkerRef.current) {
+      landmarkMarkerRef.current.remove();
+      landmarkMarkerRef.current = null;
+    }
+  };
+
+  const handleCopyCoords = (lat: number, lng: number) => {
+    const text = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    navigator.clipboard.writeText(text);
+    setHasCopiedCoords(true);
+    showToast('Coordinates Copied', `${text} copied to clipboard`, 'success');
+    setTimeout(() => setHasCopiedCoords(false), 2500);
+  };
+
+  const handleStartFieldAtLandmark = (landmark: MapLandmark) => {
+    const center: LatLng = { lat: landmark.lat, lng: landmark.lng };
+    const delta = 0.0006;
+    const defaultBoundary: LatLng[] = [
+      { lat: center.lat + delta, lng: center.lng - delta },
+      { lat: center.lat + delta, lng: center.lng + delta },
+      { lat: center.lat - delta, lng: center.lng + delta },
+      { lat: center.lat - delta, lng: center.lng - delta }
+    ];
+
+    const cleanName = landmark.name.replace(/^GPS Point:\s*/i, '').slice(0, 16);
+    const created = addField(currentFarm.id, {
+      name: `${cleanName || 'New'} Plot`,
+      crop: 'Mango',
+      areaAcres: 1.0,
+      plantingDate: new Date().toISOString().split('T')[0],
+      healthPercentage: 92,
+      healthBreakdown: { healthy: 92, atRisk: 8, critical: 0 },
+      status: 'Healthy',
+      center,
+      boundary: defaultBoundary
+    });
+
+    handleClearLandmark();
+    setSelectedFieldId(created.id);
+    selectField(created.id);
+    handleStartEdit(created);
+    showToast('Field Initialized', `Created parcel "${created.name}". Drag vertices to match exact parcel boundary.`, 'success');
+  };
+
+  const handleSetGpsAtLandmark = (landmark: MapLandmark) => {
+    setCurrentGps({ lat: landmark.lat, lng: landmark.lng });
+    showToast('GPS Telemetry Updated', `Farmer location set to ${landmark.name} (${landmark.lat.toFixed(5)}, ${landmark.lng.toFixed(5)})`, 'info');
+  };
+
+  // Debounced search for places, landmarks, fields, and coordinates
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      searchPlacesAndLandmarks('', currentFarm.center, currentFarm.fields).then(res => {
+        setSearchResults(res.slice(0, 6));
+      });
+      return;
+    }
+
+    setIsSearching(true);
+    const timer = setTimeout(() => {
+      searchPlacesAndLandmarks(searchQuery, currentFarm.center, currentFarm.fields)
+        .then(res => {
+          setSearchResults(res);
+          setIsSearching(false);
+        })
+        .catch(() => {
+          setIsSearching(false);
+        });
+    }, 280);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, currentFarm]);
+
+  // 6. Map Click in Draw Mode or View Mode (Click to Inspect)
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
 
-    const handleMapClick = (e: L.LeafletMouseEvent) => {
-      if (editorMode !== 'draw') return;
-      const newPt: LatLng = { lat: e.latlng.lat, lng: e.latlng.lng };
-      pushHistory([...activePoints, newPt]);
+    const handleMapClick = async (e: L.LeafletMouseEvent) => {
+      if (editorMode === 'draw') {
+        const newPt: LatLng = { lat: e.latlng.lat, lng: e.latlng.lng };
+        pushHistory([...activePoints, newPt]);
+        return;
+      }
+
+      if (editorMode === 'view') {
+        const pointLat = e.latlng.lat;
+        const pointLng = e.latlng.lng;
+        const tempLandmark: MapLandmark = {
+          id: `pt-${Date.now()}`,
+          name: `${pointLat.toFixed(5)}, ${pointLng.toFixed(5)}`,
+          category: 'coords',
+          address: `Inspecting point... (${pointLat.toFixed(5)}° N, ${pointLng.toFixed(5)}° E)`,
+          lat: pointLat,
+          lng: pointLng,
+          distanceKm: calculateDistanceKm(currentFarm.center.lat, currentFarm.center.lng, pointLat, pointLng)
+        };
+        handleSelectLandmark(tempLandmark);
+
+        try {
+          const detailed = await reverseGeocodePoint(pointLat, pointLng);
+          detailed.distanceKm = tempLandmark.distanceKm;
+          setActiveLandmark(detailed);
+        } catch {
+          // Keep tempLandmark
+        }
+      }
     };
 
     map.on('click', handleMapClick);
     return () => {
       map.off('click', handleMapClick);
     };
-  }, [editorMode, activePoints, pushHistory]);
+  }, [editorMode, activePoints, pushHistory, handleSelectLandmark, currentFarm]);
 
   // Start Edit Boundary
   const handleStartEdit = (field: Field) => {
@@ -745,56 +916,272 @@ export const MapPage: React.FC = () => {
       <div className="flex-1 w-full h-full relative min-h-0">
         <div ref={mapContainerRef} className="w-full h-full z-10" />
 
-        {/* FLOATING HUD: Live Geofence Telemetry (Collapsible) */}
-        <div className="absolute top-3 left-3 z-20 max-w-xs sm:max-w-sm pointer-events-auto transition-all">
-          <div className="bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200/90 shadow-xl overflow-hidden">
-            <div className="px-3.5 py-2.5 flex items-center justify-between border-b border-slate-100 bg-slate-50/80">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-                GPS Geofence Status
-              </span>
-              <div className="flex items-center gap-1.5">
-                <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Active
-                </span>
-                <button
-                  onClick={() => setIsHudCollapsed(!isHudCollapsed)}
-                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
-                  title={isHudCollapsed ? 'Expand HUD' : 'Collapse HUD'}
-                >
-                  {isHudCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
-                </button>
+        {/* FLOATING LANDMARK & PLACE SEARCH BAR (In View Mode) */}
+        {editorMode === 'view' && (
+          <div className="absolute top-3 left-3 z-30 w-[92%] sm:w-[380px] md:w-[440px] pointer-events-auto">
+            <div className="relative">
+              <div className="bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200 shadow-xl flex items-center px-3.5 py-2.5 gap-2.5 transition-all focus-within:ring-2 focus-within:ring-forest-500 focus-within:border-forest-500">
+                <Search className="w-4 h-4 text-forest-700 shrink-0" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => {
+                    setSearchQuery(e.target.value);
+                    setIsSearchOpen(true);
+                  }}
+                  onFocus={() => setIsSearchOpen(true)}
+                  placeholder="Search place, landmark, or lat, lng..."
+                  className="flex-1 bg-transparent text-xs sm:text-sm font-semibold text-slate-800 placeholder:text-slate-400 focus:outline-none"
+                />
+
+                {isSearching && <Loader2 className="w-4 h-4 text-forest-600 animate-spin shrink-0" />}
+
+                {searchQuery && (
+                  <button
+                    onClick={() => {
+                      setSearchQuery('');
+                      setIsSearchOpen(false);
+                    }}
+                    className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                    title="Clear search"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
+
+              {/* Suggestions Dropdown */}
+              {isSearchOpen && (
+                <div className="absolute left-0 right-0 top-full mt-2 bg-white/98 backdrop-blur-md rounded-2xl border border-slate-200 shadow-2xl overflow-hidden max-h-80 overflow-y-auto z-40 animate-in fade-in duration-150 divide-y divide-slate-100">
+                  <div className="p-2 bg-slate-50/80 flex items-center justify-between text-[11px] font-bold text-slate-500">
+                    <span>
+                      {searchQuery.trim() ? 'Matching Locations & Landmarks' : 'Nearby Agro Landmarks & Parcels'}
+                    </span>
+                    <button
+                      onClick={() => setIsSearchOpen(false)}
+                      className="text-slate-400 hover:text-slate-600 text-[10px] font-semibold"
+                    >
+                      Close
+                    </button>
+                  </div>
+
+                  {searchResults.length > 0 ? (
+                    searchResults.map(item => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => handleSelectLandmark(item)}
+                        className="w-full text-left p-3 hover:bg-forest-50/80 transition-colors flex items-start gap-2.5 group"
+                      >
+                        <div className="mt-0.5 w-7 h-7 rounded-xl flex items-center justify-center shrink-0 bg-slate-100 group-hover:bg-forest-100 text-slate-600 group-hover:text-forest-700 transition-colors">
+                          {item.category === 'coords' ? (
+                            <Compass className="w-4 h-4 text-emerald-600" />
+                          ) : item.isField ? (
+                            <Crop className="w-4 h-4 text-forest-700" />
+                          ) : item.category === 'market' ? (
+                            <Building2 className="w-4 h-4 text-amber-600" />
+                          ) : item.category === 'water' ? (
+                            <span className="text-xs">💧</span>
+                          ) : (
+                            <Landmark className="w-4 h-4 text-amber-600" />
+                          )}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-1">
+                            <h5 className="font-bold text-slate-900 text-xs truncate group-hover:text-forest-900">
+                              {item.name}
+                            </h5>
+                            {item.distanceKm !== undefined && (
+                              <span className="text-[10px] font-semibold text-slate-500 shrink-0">
+                                {item.distanceKm} km
+                              </span>
+                            )}
+                          </div>
+
+                          <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                            {item.address}
+                          </p>
+
+                          <div className="flex items-center gap-2 mt-1 text-[10px] font-mono text-slate-500">
+                            <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700 font-semibold">
+                              {item.lat.toFixed(5)}°, {item.lng.toFixed(5)}°
+                            </span>
+                            {item.category === 'coords' && (
+                              <span className="text-emerald-700 font-bold">Direct GPS</span>
+                            )}
+                            {item.isField && (
+                              <span className="text-forest-700 font-bold">Farm Parcel</span>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="p-4 text-center text-xs text-slate-500">
+                      {isSearching ? (
+                        <div className="flex items-center justify-center gap-2">
+                          <Loader2 className="w-4 h-4 text-forest-600 animate-spin" />
+                          <span>Searching geographic database...</span>
+                        </div>
+                      ) : (
+                        <p>No matching place or coordinates found. Try typing coordinates like <code>13.298, 77.535</code>.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
-            {!isHudCollapsed && (
-              <div className="p-3.5 space-y-2.5">
-                {currentField ? (
-                  <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200/80 text-emerald-950">
-                    <p className="text-xs font-black">Inside {currentField.name}</p>
-                    <p className="text-[11px] text-emerald-800 font-semibold mt-0.5">
-                      {currentField.crop} • {formatArea(currentField.areaAcres)}
-                    </p>
+            {/* Active Landmark / Inspected Location Card */}
+            {activeLandmark && (
+              <div className="mt-2 bg-white/95 backdrop-blur-md rounded-2xl border border-amber-200/80 shadow-2xl p-3.5 space-y-2.5 animate-in fade-in slide-in-from-top-2 duration-150">
+                <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                      {activeLandmark.category === 'coords' ? (
+                        <Compass className="w-4 h-4 text-amber-700" />
+                      ) : (
+                        <Landmark className="w-4 h-4 text-amber-700" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-200">
+                          {activeLandmark.category === 'coords' ? 'GPS Coordinates' : 'Selected Landmark'}
+                        </span>
+                        {activeLandmark.distanceKm !== undefined && (
+                          <span className="text-[10px] text-slate-400">
+                            • {activeLandmark.distanceKm} km from farm
+                          </span>
+                        )}
+                      </div>
+                      <h4 className="font-extrabold text-slate-900 text-sm truncate mt-0.5">
+                        {activeLandmark.name}
+                      </h4>
+                    </div>
                   </div>
-                ) : (
-                  <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200/80 text-amber-950">
-                    <p className="text-xs font-black">Outside Defined Parcel Boundaries</p>
-                    <p className="text-[11px] text-amber-800 mt-0.5">
-                      Farmer pin is not inside registered parcel coordinates.
-                    </p>
-                  </div>
-                )}
 
-                <div className="text-[11px] text-slate-500 flex items-center justify-between font-mono pt-1 border-t border-slate-100">
-                  <span>Coordinates:</span>
-                  <span className="font-bold text-slate-800">
-                    {currentGps.lat.toFixed(4)}° N, {currentGps.lng.toFixed(4)}° E
-                  </span>
+                  <button
+                    onClick={handleClearLandmark}
+                    className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 shrink-0"
+                    title="Dismiss landmark pin"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                  {activeLandmark.address}
+                </p>
+
+                {/* Geodetic Coordinates Box */}
+                <div className="p-2 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs font-mono">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-sans">Geodetic Position:</span>
+                    <span className="font-bold text-slate-800">
+                      {activeLandmark.lat.toFixed(6)}° N, {activeLandmark.lng.toFixed(6)}° E
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyCoords(activeLandmark.lat, activeLandmark.lng)}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 border border-slate-200 text-[11px] font-sans font-semibold text-slate-700 transition-colors shadow-2xs"
+                    title="Copy latitude and longitude"
+                  >
+                    {hasCopiedCoords ? (
+                      <>
+                        <CheckCheck className="w-3.5 h-3.5 text-emerald-600" />
+                        <span className="text-emerald-700">Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Copy</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Actions: Start Field Boundary Here or Set As GPS */}
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleStartFieldAtLandmark(activeLandmark)}
+                    className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold shadow-xs transition-colors"
+                    title="Create a new parcel centered at this location and start editing boundary"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Map Field Here</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSetGpsAtLandmark(activeLandmark)}
+                    className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold shadow-2xs transition-colors"
+                    title="Teleport simulated farmer position to this coordinate"
+                  >
+                    <Navigation className="w-3.5 h-3.5 text-forest-700" />
+                    <span>Set GPS Position</span>
+                  </button>
                 </div>
               </div>
             )}
           </div>
-        </div>
+        )}
+
+        {/* FLOATING HUD: Live Geofence Telemetry (Collapsible - Top Right) */}
+        {editorMode === 'view' && (
+          <div className="absolute top-3 right-3 z-20 max-w-xs sm:max-w-sm pointer-events-auto transition-all">
+            <div className="bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200/90 shadow-xl overflow-hidden">
+              <div className="px-3.5 py-2.5 flex items-center justify-between border-b border-slate-100 bg-slate-50/80">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  GPS Geofence Status
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Active
+                  </span>
+                  <button
+                    onClick={() => setIsHudCollapsed(!isHudCollapsed)}
+                    className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
+                    title={isHudCollapsed ? 'Expand HUD' : 'Collapse HUD'}
+                  >
+                    {isHudCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+
+              {!isHudCollapsed && (
+                <div className="p-3.5 space-y-2.5">
+                  {currentField ? (
+                    <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200/80 text-emerald-950">
+                      <p className="text-xs font-black">Inside {currentField.name}</p>
+                      <p className="text-[11px] text-emerald-800 font-semibold mt-0.5">
+                        {currentField.crop} • {formatArea(currentField.areaAcres)}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200/80 text-amber-950">
+                      <p className="text-xs font-black">Outside Defined Parcel Boundaries</p>
+                      <p className="text-[11px] text-amber-800 mt-0.5">
+                        Farmer pin is not inside registered parcel coordinates.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="text-[11px] text-slate-500 flex items-center justify-between font-mono pt-1 border-t border-slate-100">
+                    <span>Coordinates:</span>
+                    <span className="font-bold text-slate-800">
+                      {currentGps.lat.toFixed(4)}° N, {currentGps.lng.toFixed(4)}° E
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* FLOATING VERTEX INSPECTOR (When a Point is Selected in Edit Mode) */}
         {selectedVertexIndex !== null && activePoints[selectedVertexIndex] && (
