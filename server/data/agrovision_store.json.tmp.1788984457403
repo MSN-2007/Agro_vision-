@@ -524,20 +524,6 @@
       "userId": "user-ravi-01",
       "farmId": "farm-gv-01",
       "fieldId": "field-mango-01",
-      "title": "fake",
-      "description": "",
-      "dueDate": "Tomorrow",
-      "status": "Pending",
-      "voiceCreated": false,
-      "source": "website",
-      "id": "task-1788985197209-ifrh7",
-      "createdAt": "2026-09-09T20:19:57.209Z",
-      "updatedAt": "2026-09-09T20:19:57.209Z"
-    },
-    {
-      "userId": "user-ravi-01",
-      "farmId": "farm-gv-01",
-      "fieldId": "field-mango-01",
       "title": "Check Raspberry Pi SSE Stream",
       "description": "",
       "dueDate": "Today",
@@ -709,10 +695,10 @@
       "name": "AgroVision Field Hub",
       "status": "online",
       "batteryLevel": 98,
-      "lastSeen": "2026-09-09T21:10:54.355Z",
+      "lastSeen": "2026-09-09T20:07:37.403Z",
       "id": "devi-1788836734813-a5p4x",
       "createdAt": "2026-09-08T03:05:34.813Z",
-      "updatedAt": "2026-09-09T21:10:54.355Z",
+      "updatedAt": "2026-09-09T20:07:37.403Z",
       "firmwareVersion": "v1.3.0",
       "ipAddress": "192.168.0.162"
     },
@@ -847,61 +833,6 @@
     }
   },
   "activity": [
-    {
-      "id": "act-1788985197220",
-      "userId": "user-ravi-01",
-      "action": "Task Created",
-      "details": "fake",
-      "fieldName": "Mango Plantation",
-      "type": "task",
-      "source": "website",
-      "timestamp": "Just now",
-      "createdAt": "2026-09-09T20:19:57.220Z"
-    },
-    {
-      "id": "act-1788985167151",
-      "userId": "user-ravi-01",
-      "action": "Task Removed",
-      "details": "test main",
-      "fieldName": "Farm",
-      "type": "task",
-      "source": "website",
-      "timestamp": "Just now",
-      "createdAt": "2026-09-09T20:19:27.151Z"
-    },
-    {
-      "id": "act-1788985166207",
-      "userId": "user-ravi-01",
-      "action": "Task Removed",
-      "details": "fake",
-      "fieldName": "Farm",
-      "type": "task",
-      "source": "website",
-      "timestamp": "Just now",
-      "createdAt": "2026-09-09T20:19:26.207Z"
-    },
-    {
-      "id": "act-1788984888434",
-      "userId": "user-ravi-01",
-      "action": "Task Created",
-      "details": "fake",
-      "fieldName": "Mango Plantation",
-      "type": "task",
-      "source": "website",
-      "timestamp": "Just now",
-      "createdAt": "2026-09-09T20:14:48.434Z"
-    },
-    {
-      "id": "act-1788984805204",
-      "userId": "user-ravi-01",
-      "action": "Task Created",
-      "details": "test main",
-      "fieldName": "Mango Plantation",
-      "type": "task",
-      "source": "website",
-      "timestamp": "Just now",
-      "createdAt": "2026-09-09T20:13:25.204Z"
-    },
     {
       "id": "act-1788903422858",
       "userId": "user-ravi-01",

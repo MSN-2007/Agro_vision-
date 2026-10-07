@@ -1114,10 +1114,13 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
+const HOST = process.env.HOST || '0.0.0.0';
+
+server.listen(PORT, HOST, () => {
   console.log(`\n======================================================`);
   console.log(`🌿 AgroVision Central Backend Server Active`);
-  console.log(`📡 URL: http://localhost:${PORT}`);
+  console.log(`📡 Local:   http://localhost:${PORT}`);
+  console.log(`🌐 Network: http://${HOST === '0.0.0.0' ? '0.0.0.0' : HOST}:${PORT}`);
   console.log(`⚡ Real-time SSE Stream: http://localhost:${PORT}/api/sync/events`);
   console.log(`🌐 Ready for Website, Mobile App & Raspberry Pi`);
   console.log(`======================================================\n`);
